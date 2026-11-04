@@ -8,7 +8,8 @@ use and is not a full replacement for as1750.
     assemble_1750.py -o program.bin -l program.tsv [-m program.map] a.s b.s
 
 The listing has one row per word: address, then "code" and the expected disassembly,
-"cont" for the rest of a two-word instruction, or "data". Symbols nothing defines
+"cont" for the rest of a two-word instruction, or "data". A "cont" row has "symbolic" in
+its last column if its value depends on where a symbol landed. Symbols nothing defines
 become stub functions. If there is a main, a startup stub at word 0 calls the INIT
 section (startup code from the compiler), then main. A return ends INIT and the image,
 so that the last instruction in a file can't fall off the end.
@@ -276,6 +277,12 @@ class Program:
             raise AsmError(f"bad register {text!r}")
         return int(match.group(1))
 
+    @staticmethod
+    def names_symbol(arg):
+        if re.fullmatch(r"[RB]\d+", arg) or arg in CONDITIONS:
+            return False
+        return any(match.group(2)[0] in "ABCDEFGHIJKLMNOPQRSTUVWXYZ_.$" for match in TERM.finditer(arg))
+
     def encode(self, op, args, scope, where, address):
         names = self.syntax[op]
         if len(args) != len(names) and not (names and names[-1] == "RX" and len(args) == len(names) - 1):
@@ -329,7 +336,8 @@ class Program:
             encoded = encoded << width | value
         count = validate_output.word_count(self.reference[op])
         words = [encoded >> 16, encoded & 0xFFFF] if count == 2 else [encoded]
-        return words, f"{op} {','.join(text)}".rstrip()
+        symbolic = any(self.names_symbol(arg) for arg in args)
+        return words, f"{op} {','.join(text)}".rstrip(), symbolic
 
     def build(self):
         self.undefined = set()
@@ -343,8 +351,8 @@ class Program:
         words = []
         listing = []
 
-        def put(word, kind, text=""):
-            listing.append((len(words), kind, text))
+        def put(word, kind, text="", symbolic=False):
+            listing.append((len(words), kind, text, "symbolic" if symbolic else ""))
             words.append(word & 0xFFFF)
 
         if self.has_main():
@@ -365,10 +373,10 @@ class Program:
             for item in self.sections[section]:
                 if item[0] == "insn":
                     _, op, args, scope, where = item
-                    encoded, text = self.encode(op, args, scope, where, len(words))
+                    encoded, text, symbolic = self.encode(op, args, scope, where, len(words))
                     put(encoded[0], "code", text)
                     for extra in encoded[1:]:
-                        put(extra, "cont")
+                        put(extra, "cont", symbolic=symbolic)
                 elif item[0] == "data":
                     _, arg, scope, _ = item
                     put(self.evaluate(arg, scope), "data")
@@ -418,8 +426,8 @@ def main():
     with open(args.output, "wb") as out:
         out.write(b"".join(word.to_bytes(2, "big") for word in words))
     with open(args.listing, "w", encoding="ascii") as out:
-        for address, kind, text in listing:
-            out.write(f"{address:x}\t{kind}\t{text}\n")
+        for address, kind, text, symbolic in listing:
+            out.write(f"{address:x}\t{kind}\t{text}\t{symbolic}\n")
     if args.map:
         write_map(args.map, program)
     code = sum(1 for row in listing if row[1] == "code")

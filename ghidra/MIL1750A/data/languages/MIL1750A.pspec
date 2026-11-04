@@ -1,5 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<!-- Execution starts at word 0 after reset. Each interrupt has a linkage pointer (LP) and a
+     service pointer (SVP) in low memory, from Table VIII of the standard. The optional MMU
+     isn't modeled, so all addresses are in one 64K-word space. -->
 <processor_spec>
   <programcounter register="IC"/>
+  <default_symbols>
+    <symbol name="RESET" address="ram:0000" entry="true"/>
+    <symbol name="INT_00_POWER_DOWN_LP" address="ram:0020"/>
+    <symbol name="INT_00_POWER_DOWN_SVP" address="ram:0021"/>
+    <symbol name="INT_01_MACHINE_ERROR_LP" address="ram:0022"/>
+    <symbol name="INT_01_MACHINE_ERROR_SVP" address="ram:0023"/>
+    <symbol name="INT_02_SPARE_2_LP" address="ram:0024"/>
+    <symbol name="INT_02_SPARE_2_SVP" address="ram:0025"/>
+    <symbol name="INT_03_FLOAT_OVERFLOW_LP" address="ram:0026"/>
+    <symbol name="INT_03_FLOAT_OVERFLOW_SVP" address="ram:0027"/>
+    <symbol name="INT_04_FIXED_OVERFLOW_LP" address="ram:0028"/>
+    <symbol name="INT_04_FIXED_OVERFLOW_SVP" address="ram:0029"/>
+    <symbol name="INT_05_EXECUTIVE_CALL_LP" address="ram:002a"/>
+    <symbol name="INT_05_EXECUTIVE_CALL_SVP" address="ram:002b"/>
+    <symbol name="INT_06_FLOAT_UNDERFLOW_LP" address="ram:002c"/>
+    <symbol name="INT_06_FLOAT_UNDERFLOW_SVP" address="ram:002d"/>
+    <symbol name="INT_07_TIMER_A_LP" address="ram:002e"/>
+    <symbol name="INT_07_TIMER_A_SVP" address="ram:002f"/>
+    <symbol name="INT_08_SPARE_8_LP" address="ram:0030"/>
+    <symbol name="INT_08_SPARE_8_SVP" address="ram:0031"/>
+    <symbol name="INT_09_TIMER_B_LP" address="ram:0032"/>
+    <symbol name="INT_09_TIMER_B_SVP" address="ram:0033"/>
+    <symbol name="INT_10_SPARE_10_LP" address="ram:0034"/>
+    <symbol name="INT_10_SPARE_10_SVP" address="ram:0035"/>
+    <symbol name="INT_11_SPARE_11_LP" address="ram:0036"/>
+    <symbol name="INT_11_SPARE_11_SVP" address="ram:0037"/>
+    <symbol name="INT_12_IO_LEVEL_1_LP" address="ram:0038"/>
+    <symbol name="INT_12_IO_LEVEL_1_SVP" address="ram:0039"/>
+    <symbol name="INT_13_SPARE_13_LP" address="ram:003a"/>
+    <symbol name="INT_13_SPARE_13_SVP" address="ram:003b"/>
+    <symbol name="INT_14_IO_LEVEL_2_LP" address="ram:003c"/>
+    <symbol name="INT_14_IO_LEVEL_2_SVP" address="ram:003d"/>
+    <symbol name="INT_15_SPARE_15_LP" address="ram:003e"/>
+    <symbol name="INT_15_SPARE_15_SVP" address="ram:003f"/>
+  </default_symbols>
 </processor_spec>

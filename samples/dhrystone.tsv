@@ -1,534 +1,534 @@
-0	code	LIM R15,0xf000
-1	cont	
-2	code	SJS R15,0x20e
-3	cont	
-4	code	SJS R15,0x14e
-5	cont	
-6	code	BR 0x6
-7	code	PSHM R14,R14
-8	code	LR R14,R15
-9	code	LR R1,R0
-a	code	INCM 0x1,0x0,R1
-b	cont	
-c	code	LR R15,R14
-d	code	POPM R14,R14
-e	code	URS R15
-f	code	SISP R15,0x1
-10	code	PSHM R14,R14
-11	code	LR R14,R15
-12	code	ST R0,0x1,R14
-13	cont	
-14	code	LIM R2,0x21
-15	cont	
-16	code	LIM R1,0x219
-17	cont	
-18	code	LR R3,R0
-19	code	L R0,0x0,R3
-1a	cont	
-1b	code	SJS R15,0x1ce
-1c	cont	
-1d	code	L R3,0x1,R14
-1e	cont	
-1f	code	STC 0x5,0x2,R3
-20	cont	
-21	code	L R1,0x0,R3
-22	cont	
-23	code	STC 0x5,0x2,R1
-24	cont	
-25	code	L R1,0x0,R3
-26	cont	
-27	code	L R0,0x0,R1
-28	cont	
-29	code	SJS R15,0x68
-2a	cont	
-2b	code	L R3,0x1,R14
-2c	cont	
-2d	code	L R1,0x0,R3
-2e	cont	
-2f	code	STC 0x6,0x2,R1
-30	cont	
-31	code	L R1,0x0,R3
-32	cont	
-33	code	L R1,0x1,R1
-34	cont	
-35	code	L R0,0x1,R3
-36	cont	
-37	code	SJS R15,0x9a
-38	cont	
-39	code	L R3,0x1,R14
-3a	cont	
-3b	code	L R1,0x0,R3
-3c	cont	
-3d	code	L R3,0x219
-3e	cont	
-3f	code	ST R3,0x0,R1
-40	cont	
-41	code	L R3,0x1,R14
-42	cont	
-43	code	L R1,0x0,R3
-44	cont	
-45	code	L R2,0x2,R1
-46	cont	
-47	code	LISP R1,0xa
-48	code	LR R0,R2
-49	code	SJS R15,0xd8
-4a	cont	
-4b	code	LR R15,R14
-4c	code	POPM R14,R14
-4d	code	AISP R15,0x1
-4e	code	URS R15
-4f	code	PSHM R14,R14
-50	code	LR R14,R15
-51	code	LR R2,R0
-52	code	L R1,0x0,R2
-53	cont	
-54	code	AISP R1,0xa
-55	code	LIM R4,0x41
-56	cont	
-57	code	L R0,0x217
-58	cont	
-59	code	CR R0,R4
-5a	code	JC 0x5,0x63
-5b	cont	
-5c	code	SISP R1,0x1
-5d	code	LR R5,R1
-5e	code	S R5,0x5f0
-5f	cont	
-60	code	ST R5,0x0,R2
-61	cont	
-62	code	XORR R3,R3
-63	code	LR R3,R3
-64	code	BNZ 0x57
-65	code	LR R15,R14
-66	code	POPM R14,R14
-67	code	URS R15
-68	code	PSHM R14,R14
-69	code	LR R14,R15
-6a	code	LR R3,R0
-6b	code	LIM R0,0x219
-6c	cont	
-6d	code	JC 0x2,0x78
-6e	cont	
-6f	code	LIM R2,0x21
-70	cont	
-71	code	L R1,0x219
-72	cont	
-73	code	LR R0,R3
-74	code	SJS R15,0x1ce
-75	cont	
-76	code	JC 0xf,0x7c
-77	cont	
-78	code	LIM R4,0x64
-79	cont	
-7a	code	ST R4,0x5f0
-7b	cont	
-7c	code	LIM R2,0x21b
-7d	cont	
-7e	code	L R1,0x5f0
-7f	cont	
-80	code	LISP R0,0xa
-81	code	SJS R15,0xd8
-82	cont	
-83	code	LR R15,R14
-84	code	POPM R14,R14
-85	code	URS R15
-86	code	PSHM R14,R14
-87	code	LR R14,R15
-88	code	LIM R1,0x42
-89	cont	
-8a	code	ST R1,0x218
-8b	cont	
-8c	code	LR R15,R14
-8d	code	POPM R14,R14
-8e	code	URS R15
-8f	code	PSHM R14,R14
-90	code	LR R14,R15
-91	code	LIM R0,0x41
-92	cont	
-93	code	ST R0,0x217
-94	cont	
-95	code	STC 0x0,0x216
-96	cont	
-97	code	LR R15,R14
-98	code	POPM R14,R14
-99	code	URS R15
-9a	code	SISP R15,0x2
-9b	code	PSHM R14,R14
-9c	code	LR R14,R15
-9d	code	ST R0,0x1,R14
-9e	cont	
-9f	code	LR R2,R1
-a0	code	L R0,0x1,R14
-a1	cont	
-a2	code	STB B14,0x2
-a3	code	SJS R15,0x143
-a4	cont	
-a5	code	LB B14,0x2
-a6	code	LR R0,R0
-a7	code	JC 0x5,0xab
-a8	cont	
-a9	code	STC 0x3,0x0,R2
-aa	cont	
-ab	code	L R3,0x1,R14
-ac	cont	
-ad	code	PSHM R3,R6
-ae	code	LR R4,R3
-af	code	XORR R3,R3
-b0	code	XORR R5,R5
-b1	code	LIM R6,0x4
-b2	cont	
-b3	code	DCR R3,R5
-b4	code	POPM R3,R6
-b5	code	JC 0x4,0xd4
-b6	cont	
-b7	code	L R1,0xbb,R3
-b8	cont	
-b9	code	JC 0xf,0x0,R1
-ba	cont	
-bb	data	
-bc	data	
-bd	data	
-be	data	
-bf	data	
-c0	code	L R0,0x5f0
-c1	cont	
-c2	code	CIM R0,0x64
-c3	cont	
-c4	code	JC 0x3,0xca
-c5	cont	
-c6	code	STC 0x0,0x0,R2
-c7	cont	
-c8	code	JC 0xf,0xd4
-c9	cont	
-ca	code	STC 0x3,0x0,R2
-cb	cont	
-cc	code	JC 0xf,0xd4
-cd	cont	
-ce	code	STC 0x1,0x0,R2
-cf	cont	
-d0	code	JC 0xf,0xd4
-d1	cont	
-d2	code	STC 0x2,0x0,R2
-d3	cont	
-d4	code	LR R15,R14
-d5	code	POPM R14,R14
-d6	code	AISP R15,0x2
-d7	code	URS R15
-d8	code	PSHM R14,R14
-d9	code	LR R14,R15
-da	code	AISP R0,0x2
-db	code	AR R1,R0
-dc	code	ST R1,0x0,R2
-dd	cont	
-de	code	LR R15,R14
-df	code	POPM R14,R14
-e0	code	URS R15
-e1	code	PSHM R14,R14
-e2	code	LR R14,R15
-e3	code	LR R6,R0
-e4	code	LR R5,R1
-e5	code	LIM R4,0x5,R2
-e6	cont	
-e7	code	LR R1,R6
-e8	code	AR R1,R4
-e9	code	ST R3,0x0,R1
-ea	cont	
-eb	code	ST R3,0x1,R1
-ec	cont	
-ed	code	ST R4,0x1e,R1
-ee	cont	
-ef	code	LR R3,R4
-f0	code	LIM R0,0x6,R2
-f1	cont	
-f2	code	CR R4,R0
-f3	code	JC 0x4,0x103
-f4	cont	
-f5	code	LR R0,R4
-f6	code	SLL R0,0x4
-f7	code	SR R0,R4
-f8	code	SLL R0,0x1
-f9	code	AR R0,R5
-fa	code	LIM R2,0x1,R4
-fb	cont	
-fc	code	LR R1,R0
-fd	code	AR R1,R3
-fe	code	ST R4,0x0,R1
-ff	cont	
-100	code	AISP R3,0x1
-101	code	CR R3,R2
-102	code	BLE 0xfc
-103	code	LR R1,R4
-104	code	SLL R1,0x5
-105	code	SR R1,R4
-106	code	AR R1,R5
-107	code	INCM 0x1,0xffff,R1
-108	cont	
-109	code	LR R2,R6
-10a	code	AR R2,R4
-10b	code	L R2,0x0,R2
-10c	cont	
-10d	code	ST R2,0x258,R1
-10e	cont	
-10f	code	STC 0x5,0x5f0
-110	cont	
-111	code	LR R15,R14
-112	code	POPM R14,R14
-113	code	URS R15
-114	code	PSHM R14,R14
-115	code	LR R14,R15
-116	code	LR R2,R0
-117	code	XORR R0,R0
-118	code	CR R2,R1
-119	code	JC 0x5,0x11c
-11a	cont	
-11b	code	LISP R0,0x1
-11c	code	LR R15,R14
-11d	code	POPM R14,R14
-11e	code	URS R15
-11f	code	SISP R15,0x3
-120	code	PSHM R14,R14
-121	code	LR R14,R15
-122	code	ST R0,0x1,R14
-123	cont	
-124	code	ST R1,0x2,R14
-125	cont	
-126	code	LISP R3,0x2
-127	code	L R1,0x2,R14
-128	cont	
-129	code	AR R1,R3
-12a	code	LB B14,0x1
-12b	code	AR R2,R3
-12c	code	L R1,0x1,R1
-12d	cont	
-12e	code	L R0,0x0,R2
-12f	cont	
-130	code	ST R3,0x3,R14
-131	cont	
-132	code	SJS R15,0x114
-133	cont	
-134	code	L R3,0x3,R14
-135	cont	
-136	code	LR R0,R0
-137	code	JC 0x5,0x13a
-138	cont	
-139	code	AISP R3,0x1
-13a	code	CISP R3,0x2
-13b	code	BLE 0x127
-13c	code	LIM R0,0x41
-13d	cont	
-13e	code	LISN R0,0x1
-13f	code	LR R15,R14
-140	code	POPM R14,R14
-141	code	AISP R15,0x3
-142	code	URS R15
-143	code	PSHM R14,R14
-144	code	LR R14,R15
-145	code	LR R1,R0
-146	code	LISN R0,0x1
-147	code	CISP R1,0x2
-148	code	JC 0x2,0x14b
-149	cont	
-14a	code	XORR R0,R0
-14b	code	LR R15,R14
-14c	code	POPM R14,R14
-14d	code	URS R15
-14e	code	SISP R15,0x5
-14f	code	PSHM R14,R14
-150	code	LR R14,R15
-151	code	STC 0x0,0x1,R14
-152	cont	
-153	code	LIM R0,0x1,R14
-154	cont	
-155	code	SJS R15,0x7
-156	cont	
-157	code	L R0,0x1,R14
-158	cont	
-159	code	CIM R0,0x270f
-15a	cont	
-15b	code	BLE 0x153
-15c	code	STC 0x0,0x1,R14
-15d	cont	
-15e	code	SJS R15,0x8f
-15f	cont	
-160	code	SJS R15,0x86
-161	cont	
-162	code	LISP R4,0x2
-163	code	LIM R1,0x1f0
-164	cont	
-165	code	L R0,0x3,R14
-166	cont	
-167	code	ST R4,0x5,R14
-168	cont	
-169	code	SJS R15,0x11f
-16a	cont	
-16b	code	ABS R0,R0
-16c	code	SISP R0,0x1
-16d	code	SRL R0,0xf
-16e	code	ST R0,0x216
-16f	cont	
-170	code	L R4,0x5,R14
-171	cont	
-172	code	LR R0,R4
-173	code	SLL R0,0x2
-174	code	AR R0,R4
-175	code	SISP R0,0x3
-176	code	ST R0,0x2,R14
-177	cont	
-178	code	LIM R2,0x2,R14
-179	cont	
-17a	code	LISP R1,0x3
-17b	code	LR R0,R4
-17c	code	ST R4,0x5,R14
-17d	cont	
-17e	code	SJS R15,0xd8
-17f	cont	
-180	code	L R4,0x5,R14
-181	cont	
-182	code	AISP R4,0x1
-183	code	CISP R4,0x3
-184	code	BLT 0x172
-185	code	L R3,0x2,R14
-186	cont	
-187	code	LR R2,R4
-188	code	LIM R1,0x26c
-189	cont	
-18a	code	LIM R0,0x23a
-18b	cont	
-18c	code	ST R4,0x5,R14
-18d	cont	
-18e	code	SJS R15,0xe1
-18f	cont	
-190	code	LIM R0,0x219
-191	cont	
-192	code	SJS R15,0xf
-193	cont	
-194	code	LIM R2,0x41
-195	cont	
-196	code	L R4,0x5,R14
-197	cont	
-198	code	C R2,0x218
-199	cont	
-19a	code	JC 0x4,0x1b9
-19b	cont	
-19c	code	LIM R1,0x43
-19d	cont	
-19e	code	LR R0,R2
-19f	code	STB B14,0x4
-1a0	code	ST R4,0x5,R14
-1a1	cont	
-1a2	code	SJS R15,0x114
-1a3	cont	
-1a4	code	LB B14,0x4
-1a5	code	L R4,0x5,R14
-1a6	cont	
-1a7	code	LISP R5,0x1
-1a8	code	CR R5,R0
-1a9	code	JC 0x5,0x1b5
-1aa	cont	
-1ab	code	LISP R1,0x1
-1ac	code	XORR R0,R0
-1ad	code	STB B14,0x4
-1ae	code	ST R4,0x5,R14
-1af	cont	
-1b0	code	SJS R15,0x9a
-1b1	cont	
-1b2	code	L R4,0x5,R14
-1b3	cont	
-1b4	code	LB B14,0x4
-1b5	code	AISP R2,0x1
-1b6	code	C R2,0x218
-1b7	cont	
-1b8	code	BLE 0x19c
-1b9	code	LISP R0,0x3
-1ba	code	MSR R0,R4
-1bb	code	ST R0,0x2,R14
-1bc	cont	
-1bd	code	LR R0,R4
-1be	code	SJS R15,0x4f
-1bf	cont	
-1c0	code	LIM R0,0x1,R14
-1c1	cont	
-1c2	code	SJS R15,0x7
-1c3	cont	
-1c4	code	L R0,0x1,R14
-1c5	cont	
-1c6	code	CIM R0,0x270f
-1c7	cont	
-1c8	code	JC 0x3,0x15e
-1c9	cont	
-1ca	code	LR R15,R14
-1cb	code	POPM R14,R14
-1cc	code	AISP R15,0x5
-1cd	code	URS R15
-1ce	code	XWR R0,R1
-1cf	code	XWR R1,R2
-1d0	code	MOV R0,R2
-1d1	code	URS R15
-1d2	data	
-1d3	data	
-1d4	data	
-1d5	data	
-1d6	data	
-1d7	data	
-1d8	data	
-1d9	data	
-1da	data	
-1db	data	
-1dc	data	
-1dd	data	
-1de	data	
-1df	data	
-1e0	data	
-1e1	data	
-1e2	data	
-1e3	data	
-1e4	data	
-1e5	data	
-1e6	data	
-1e7	data	
-1e8	data	
-1e9	data	
-1ea	data	
-1eb	data	
-1ec	data	
-1ed	data	
-1ee	data	
-1ef	data	
-1f0	data	
-1f1	data	
-1f2	data	
-1f3	data	
-1f4	data	
-1f5	data	
-1f6	data	
-1f7	data	
-1f8	data	
-1f9	data	
-1fa	data	
-1fb	data	
-1fc	data	
-1fd	data	
-1fe	data	
-1ff	data	
-200	data	
-201	data	
-202	data	
-203	data	
-204	data	
-205	data	
-206	data	
-207	data	
-208	data	
-209	data	
-20a	data	
-20b	data	
-20c	data	
-20d	data	
-20e	code	LIM R0,0x1f0
-20f	cont	
-210	code	LIM R1,0x1e
-211	cont	
-212	code	LIM R2,0x1d2
-213	cont	
-214	code	MOV R0,R2
-215	code	URS R15
+0	code	LIM R15,0xf000	
+1	cont		
+2	code	SJS R15,0x20e	
+3	cont		
+4	code	SJS R15,0x14e	
+5	cont		
+6	code	BR 0x6	
+7	code	PSHM R14,R14	
+8	code	LR R14,R15	
+9	code	LR R1,R0	
+a	code	INCM 0x1,0x0,R1	
+b	cont		
+c	code	LR R15,R14	
+d	code	POPM R14,R14	
+e	code	URS R15	
+f	code	SISP R15,0x1	
+10	code	PSHM R14,R14	
+11	code	LR R14,R15	
+12	code	ST R0,0x1,R14	
+13	cont		
+14	code	LIM R2,0x21	
+15	cont		
+16	code	LIM R1,0x219	
+17	cont		symbolic
+18	code	LR R3,R0	
+19	code	L R0,0x0,R3	
+1a	cont		
+1b	code	SJS R15,0x1ce	
+1c	cont		symbolic
+1d	code	L R3,0x1,R14	
+1e	cont		
+1f	code	STC 0x5,0x2,R3	
+20	cont		
+21	code	L R1,0x0,R3	
+22	cont		
+23	code	STC 0x5,0x2,R1	
+24	cont		
+25	code	L R1,0x0,R3	
+26	cont		
+27	code	L R0,0x0,R1	
+28	cont		
+29	code	SJS R15,0x68	
+2a	cont		symbolic
+2b	code	L R3,0x1,R14	
+2c	cont		
+2d	code	L R1,0x0,R3	
+2e	cont		
+2f	code	STC 0x6,0x2,R1	
+30	cont		
+31	code	L R1,0x0,R3	
+32	cont		
+33	code	L R1,0x1,R1	
+34	cont		
+35	code	L R0,0x1,R3	
+36	cont		
+37	code	SJS R15,0x9a	
+38	cont		symbolic
+39	code	L R3,0x1,R14	
+3a	cont		
+3b	code	L R1,0x0,R3	
+3c	cont		
+3d	code	L R3,0x219	
+3e	cont		symbolic
+3f	code	ST R3,0x0,R1	
+40	cont		
+41	code	L R3,0x1,R14	
+42	cont		
+43	code	L R1,0x0,R3	
+44	cont		
+45	code	L R2,0x2,R1	
+46	cont		
+47	code	LISP R1,0xa	
+48	code	LR R0,R2	
+49	code	SJS R15,0xd8	
+4a	cont		symbolic
+4b	code	LR R15,R14	
+4c	code	POPM R14,R14	
+4d	code	AISP R15,0x1	
+4e	code	URS R15	
+4f	code	PSHM R14,R14	
+50	code	LR R14,R15	
+51	code	LR R2,R0	
+52	code	L R1,0x0,R2	
+53	cont		
+54	code	AISP R1,0xa	
+55	code	LIM R4,0x41	
+56	cont		
+57	code	L R0,0x217	
+58	cont		symbolic
+59	code	CR R0,R4	
+5a	code	JC 0x5,0x63	
+5b	cont		symbolic
+5c	code	SISP R1,0x1	
+5d	code	LR R5,R1	
+5e	code	S R5,0x5f0	
+5f	cont		symbolic
+60	code	ST R5,0x0,R2	
+61	cont		
+62	code	XORR R3,R3	
+63	code	LR R3,R3	
+64	code	BNZ 0x57	
+65	code	LR R15,R14	
+66	code	POPM R14,R14	
+67	code	URS R15	
+68	code	PSHM R14,R14	
+69	code	LR R14,R15	
+6a	code	LR R3,R0	
+6b	code	LIM R0,0x219	
+6c	cont		symbolic
+6d	code	JC 0x2,0x78	
+6e	cont		symbolic
+6f	code	LIM R2,0x21	
+70	cont		
+71	code	L R1,0x219	
+72	cont		symbolic
+73	code	LR R0,R3	
+74	code	SJS R15,0x1ce	
+75	cont		symbolic
+76	code	JC 0xf,0x7c	
+77	cont		symbolic
+78	code	LIM R4,0x64	
+79	cont		
+7a	code	ST R4,0x5f0	
+7b	cont		symbolic
+7c	code	LIM R2,0x21b	
+7d	cont		symbolic
+7e	code	L R1,0x5f0	
+7f	cont		symbolic
+80	code	LISP R0,0xa	
+81	code	SJS R15,0xd8	
+82	cont		symbolic
+83	code	LR R15,R14	
+84	code	POPM R14,R14	
+85	code	URS R15	
+86	code	PSHM R14,R14	
+87	code	LR R14,R15	
+88	code	LIM R1,0x42	
+89	cont		
+8a	code	ST R1,0x218	
+8b	cont		symbolic
+8c	code	LR R15,R14	
+8d	code	POPM R14,R14	
+8e	code	URS R15	
+8f	code	PSHM R14,R14	
+90	code	LR R14,R15	
+91	code	LIM R0,0x41	
+92	cont		
+93	code	ST R0,0x217	
+94	cont		symbolic
+95	code	STC 0x0,0x216	
+96	cont		symbolic
+97	code	LR R15,R14	
+98	code	POPM R14,R14	
+99	code	URS R15	
+9a	code	SISP R15,0x2	
+9b	code	PSHM R14,R14	
+9c	code	LR R14,R15	
+9d	code	ST R0,0x1,R14	
+9e	cont		
+9f	code	LR R2,R1	
+a0	code	L R0,0x1,R14	
+a1	cont		
+a2	code	STB B14,0x2	
+a3	code	SJS R15,0x143	
+a4	cont		symbolic
+a5	code	LB B14,0x2	
+a6	code	LR R0,R0	
+a7	code	JC 0x5,0xab	
+a8	cont		symbolic
+a9	code	STC 0x3,0x0,R2	
+aa	cont		
+ab	code	L R3,0x1,R14	
+ac	cont		
+ad	code	PSHM R3,R6	
+ae	code	LR R4,R3	
+af	code	XORR R3,R3	
+b0	code	XORR R5,R5	
+b1	code	LIM R6,0x4	
+b2	cont		
+b3	code	DCR R3,R5	
+b4	code	POPM R3,R6	
+b5	code	JC 0x4,0xd4	
+b6	cont		symbolic
+b7	code	L R1,0xbb,R3	
+b8	cont		symbolic
+b9	code	JC 0xf,0x0,R1	
+ba	cont		
+bb	data		
+bc	data		
+bd	data		
+be	data		
+bf	data		
+c0	code	L R0,0x5f0	
+c1	cont		symbolic
+c2	code	CIM R0,0x64	
+c3	cont		
+c4	code	JC 0x3,0xca	
+c5	cont		symbolic
+c6	code	STC 0x0,0x0,R2	
+c7	cont		
+c8	code	JC 0xf,0xd4	
+c9	cont		symbolic
+ca	code	STC 0x3,0x0,R2	
+cb	cont		
+cc	code	JC 0xf,0xd4	
+cd	cont		symbolic
+ce	code	STC 0x1,0x0,R2	
+cf	cont		
+d0	code	JC 0xf,0xd4	
+d1	cont		symbolic
+d2	code	STC 0x2,0x0,R2	
+d3	cont		
+d4	code	LR R15,R14	
+d5	code	POPM R14,R14	
+d6	code	AISP R15,0x2	
+d7	code	URS R15	
+d8	code	PSHM R14,R14	
+d9	code	LR R14,R15	
+da	code	AISP R0,0x2	
+db	code	AR R1,R0	
+dc	code	ST R1,0x0,R2	
+dd	cont		
+de	code	LR R15,R14	
+df	code	POPM R14,R14	
+e0	code	URS R15	
+e1	code	PSHM R14,R14	
+e2	code	LR R14,R15	
+e3	code	LR R6,R0	
+e4	code	LR R5,R1	
+e5	code	LIM R4,0x5,R2	
+e6	cont		
+e7	code	LR R1,R6	
+e8	code	AR R1,R4	
+e9	code	ST R3,0x0,R1	
+ea	cont		
+eb	code	ST R3,0x1,R1	
+ec	cont		
+ed	code	ST R4,0x1e,R1	
+ee	cont		
+ef	code	LR R3,R4	
+f0	code	LIM R0,0x6,R2	
+f1	cont		
+f2	code	CR R4,R0	
+f3	code	JC 0x4,0x103	
+f4	cont		symbolic
+f5	code	LR R0,R4	
+f6	code	SLL R0,0x4	
+f7	code	SR R0,R4	
+f8	code	SLL R0,0x1	
+f9	code	AR R0,R5	
+fa	code	LIM R2,0x1,R4	
+fb	cont		
+fc	code	LR R1,R0	
+fd	code	AR R1,R3	
+fe	code	ST R4,0x0,R1	
+ff	cont		
+100	code	AISP R3,0x1	
+101	code	CR R3,R2	
+102	code	BLE 0xfc	
+103	code	LR R1,R4	
+104	code	SLL R1,0x5	
+105	code	SR R1,R4	
+106	code	AR R1,R5	
+107	code	INCM 0x1,0xffff,R1	
+108	cont		
+109	code	LR R2,R6	
+10a	code	AR R2,R4	
+10b	code	L R2,0x0,R2	
+10c	cont		
+10d	code	ST R2,0x258,R1	
+10e	cont		
+10f	code	STC 0x5,0x5f0	
+110	cont		symbolic
+111	code	LR R15,R14	
+112	code	POPM R14,R14	
+113	code	URS R15	
+114	code	PSHM R14,R14	
+115	code	LR R14,R15	
+116	code	LR R2,R0	
+117	code	XORR R0,R0	
+118	code	CR R2,R1	
+119	code	JC 0x5,0x11c	
+11a	cont		symbolic
+11b	code	LISP R0,0x1	
+11c	code	LR R15,R14	
+11d	code	POPM R14,R14	
+11e	code	URS R15	
+11f	code	SISP R15,0x3	
+120	code	PSHM R14,R14	
+121	code	LR R14,R15	
+122	code	ST R0,0x1,R14	
+123	cont		
+124	code	ST R1,0x2,R14	
+125	cont		
+126	code	LISP R3,0x2	
+127	code	L R1,0x2,R14	
+128	cont		
+129	code	AR R1,R3	
+12a	code	LB B14,0x1	
+12b	code	AR R2,R3	
+12c	code	L R1,0x1,R1	
+12d	cont		
+12e	code	L R0,0x0,R2	
+12f	cont		
+130	code	ST R3,0x3,R14	
+131	cont		
+132	code	SJS R15,0x114	
+133	cont		symbolic
+134	code	L R3,0x3,R14	
+135	cont		
+136	code	LR R0,R0	
+137	code	JC 0x5,0x13a	
+138	cont		symbolic
+139	code	AISP R3,0x1	
+13a	code	CISP R3,0x2	
+13b	code	BLE 0x127	
+13c	code	LIM R0,0x41	
+13d	cont		
+13e	code	LISN R0,0x1	
+13f	code	LR R15,R14	
+140	code	POPM R14,R14	
+141	code	AISP R15,0x3	
+142	code	URS R15	
+143	code	PSHM R14,R14	
+144	code	LR R14,R15	
+145	code	LR R1,R0	
+146	code	LISN R0,0x1	
+147	code	CISP R1,0x2	
+148	code	JC 0x2,0x14b	
+149	cont		symbolic
+14a	code	XORR R0,R0	
+14b	code	LR R15,R14	
+14c	code	POPM R14,R14	
+14d	code	URS R15	
+14e	code	SISP R15,0x5	
+14f	code	PSHM R14,R14	
+150	code	LR R14,R15	
+151	code	STC 0x0,0x1,R14	
+152	cont		
+153	code	LIM R0,0x1,R14	
+154	cont		
+155	code	SJS R15,0x7	
+156	cont		symbolic
+157	code	L R0,0x1,R14	
+158	cont		
+159	code	CIM R0,0x270f	
+15a	cont		
+15b	code	BLE 0x153	
+15c	code	STC 0x0,0x1,R14	
+15d	cont		
+15e	code	SJS R15,0x8f	
+15f	cont		symbolic
+160	code	SJS R15,0x86	
+161	cont		symbolic
+162	code	LISP R4,0x2	
+163	code	LIM R1,0x1f0	
+164	cont		symbolic
+165	code	L R0,0x3,R14	
+166	cont		
+167	code	ST R4,0x5,R14	
+168	cont		
+169	code	SJS R15,0x11f	
+16a	cont		symbolic
+16b	code	ABS R0,R0	
+16c	code	SISP R0,0x1	
+16d	code	SRL R0,0xf	
+16e	code	ST R0,0x216	
+16f	cont		symbolic
+170	code	L R4,0x5,R14	
+171	cont		
+172	code	LR R0,R4	
+173	code	SLL R0,0x2	
+174	code	AR R0,R4	
+175	code	SISP R0,0x3	
+176	code	ST R0,0x2,R14	
+177	cont		
+178	code	LIM R2,0x2,R14	
+179	cont		
+17a	code	LISP R1,0x3	
+17b	code	LR R0,R4	
+17c	code	ST R4,0x5,R14	
+17d	cont		
+17e	code	SJS R15,0xd8	
+17f	cont		symbolic
+180	code	L R4,0x5,R14	
+181	cont		
+182	code	AISP R4,0x1	
+183	code	CISP R4,0x3	
+184	code	BLT 0x172	
+185	code	L R3,0x2,R14	
+186	cont		
+187	code	LR R2,R4	
+188	code	LIM R1,0x26c	
+189	cont		symbolic
+18a	code	LIM R0,0x23a	
+18b	cont		symbolic
+18c	code	ST R4,0x5,R14	
+18d	cont		
+18e	code	SJS R15,0xe1	
+18f	cont		symbolic
+190	code	LIM R0,0x219	
+191	cont		symbolic
+192	code	SJS R15,0xf	
+193	cont		symbolic
+194	code	LIM R2,0x41	
+195	cont		
+196	code	L R4,0x5,R14	
+197	cont		
+198	code	C R2,0x218	
+199	cont		symbolic
+19a	code	JC 0x4,0x1b9	
+19b	cont		symbolic
+19c	code	LIM R1,0x43	
+19d	cont		
+19e	code	LR R0,R2	
+19f	code	STB B14,0x4	
+1a0	code	ST R4,0x5,R14	
+1a1	cont		
+1a2	code	SJS R15,0x114	
+1a3	cont		symbolic
+1a4	code	LB B14,0x4	
+1a5	code	L R4,0x5,R14	
+1a6	cont		
+1a7	code	LISP R5,0x1	
+1a8	code	CR R5,R0	
+1a9	code	JC 0x5,0x1b5	
+1aa	cont		symbolic
+1ab	code	LISP R1,0x1	
+1ac	code	XORR R0,R0	
+1ad	code	STB B14,0x4	
+1ae	code	ST R4,0x5,R14	
+1af	cont		
+1b0	code	SJS R15,0x9a	
+1b1	cont		symbolic
+1b2	code	L R4,0x5,R14	
+1b3	cont		
+1b4	code	LB B14,0x4	
+1b5	code	AISP R2,0x1	
+1b6	code	C R2,0x218	
+1b7	cont		symbolic
+1b8	code	BLE 0x19c	
+1b9	code	LISP R0,0x3	
+1ba	code	MSR R0,R4	
+1bb	code	ST R0,0x2,R14	
+1bc	cont		
+1bd	code	LR R0,R4	
+1be	code	SJS R15,0x4f	
+1bf	cont		symbolic
+1c0	code	LIM R0,0x1,R14	
+1c1	cont		
+1c2	code	SJS R15,0x7	
+1c3	cont		symbolic
+1c4	code	L R0,0x1,R14	
+1c5	cont		
+1c6	code	CIM R0,0x270f	
+1c7	cont		
+1c8	code	JC 0x3,0x15e	
+1c9	cont		symbolic
+1ca	code	LR R15,R14	
+1cb	code	POPM R14,R14	
+1cc	code	AISP R15,0x5	
+1cd	code	URS R15	
+1ce	code	XWR R0,R1	
+1cf	code	XWR R1,R2	
+1d0	code	MOV R0,R2	
+1d1	code	URS R15	
+1d2	data		
+1d3	data		
+1d4	data		
+1d5	data		
+1d6	data		
+1d7	data		
+1d8	data		
+1d9	data		
+1da	data		
+1db	data		
+1dc	data		
+1dd	data		
+1de	data		
+1df	data		
+1e0	data		
+1e1	data		
+1e2	data		
+1e3	data		
+1e4	data		
+1e5	data		
+1e6	data		
+1e7	data		
+1e8	data		
+1e9	data		
+1ea	data		
+1eb	data		
+1ec	data		
+1ed	data		
+1ee	data		
+1ef	data		
+1f0	data		
+1f1	data		
+1f2	data		
+1f3	data		
+1f4	data		
+1f5	data		
+1f6	data		
+1f7	data		
+1f8	data		
+1f9	data		
+1fa	data		
+1fb	data		
+1fc	data		
+1fd	data		
+1fe	data		
+1ff	data		
+200	data		
+201	data		
+202	data		
+203	data		
+204	data		
+205	data		
+206	data		
+207	data		
+208	data		
+209	data		
+20a	data		
+20b	data		
+20c	data		
+20d	data		
+20e	code	LIM R0,0x1f0	
+20f	cont		symbolic
+210	code	LIM R1,0x1e	
+211	cont		
+212	code	LIM R2,0x1d2	
+213	cont		symbolic
+214	code	MOV R0,R2	
+215	code	URS R15	

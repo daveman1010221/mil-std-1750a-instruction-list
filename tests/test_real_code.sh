@@ -28,7 +28,7 @@ LISTINGS="$WORK/listings"
 rm -rf "$BINARIES" "$LISTINGS" "$WORK/project"
 mkdir -p "$BINARIES" "$LISTINGS" "$WORK/project"
 
-"$PYTHON" "$ASSEMBLE" -o "$BINARIES/dhrystone.bin" -l "$LISTINGS/dhrystone.tsv" \
+"$PYTHON" "$ASSEMBLE" -o "$BINARIES/dhrystone.bin" -l "$LISTINGS/dhrystone.tsv" -m "$WORK/dhrystone.map" \
     "$SOURCES/dhry.s" "$SOURCES/__main.s" "$SOURCES/bcopy.s"
 skipped=()
 for source in "$SOURCES"/*.s; do
@@ -56,3 +56,30 @@ expected="$(find "$BINARIES" -name '*.bin' | wc -l)"
 passed="$(grep -c 'PROGRAM PASS' "$LOG" || true)"
 echo "$passed of $expected programs passed"
 [ "$passed" = "$expected" ]
+
+# With auto-analysis on, as a person would import it, decompile every Dhrystone function.
+DECOMPILE_LOG="$WORK/decompile.log"
+rm -rf "$WORK/project"
+mkdir -p "$WORK/project"
+timeout -k 30 "${TIMEOUT:-1h}" "$GHIDRA/support/analyzeHeadless" "$WORK/project" decompile \
+    -import "$BINARIES/dhrystone.bin" -loader BinaryLoader \
+    -processor MIL1750A:BE:16:default -deleteProject \
+    -scriptPath "$REPO_ROOT/tests/sleigh" \
+    -postScript VerifyDecompile.java "$WORK/dhrystone.map" > "$DECOMPILE_LOG" 2>&1 || true
+grep -E 'DECOMPILE (ERROR|PASSED|FAILED|[0-9]+ of)' "$DECOMPILE_LOG" |
+    sed -E 's/^.*> DECOMPILE/DECOMPILE/; s/ \(GhidraScript\).*//' || true
+grep -q 'DECOMPILE PASSED' "$DECOMPILE_LOG"
+
+# Dhrystone restores R15 from a frame pointer, which hides a wrong stack adjustment.
+PROBE_LOG="$WORK/probe.log"
+"$PYTHON" "$ASSEMBLE" -o "$WORK/calling_probe.bin" -l "$WORK/calling_probe.tsv" -m "$WORK/calling_probe.map" \
+    "$REPO_ROOT/tests/sleigh/calling_probe.s"
+rm -rf "$WORK/project"
+mkdir -p "$WORK/project"
+timeout -k 30 "${TIMEOUT:-1h}" "$GHIDRA/support/analyzeHeadless" "$WORK/project" probe \
+    -import "$WORK/calling_probe.bin" -loader BinaryLoader \
+    -processor MIL1750A:BE:16:default -noanalysis -deleteProject \
+    -scriptPath "$REPO_ROOT/tests/sleigh" \
+    -postScript VerifyCallingProbe.java "$WORK/calling_probe.map" > "$PROBE_LOG" 2>&1 || true
+grep -E 'PROBE (OK|ERROR|PASSED|FAILED)' "$PROBE_LOG" | sed -E 's/^.*> PROBE/PROBE/; s/ \(GhidraScript\).*//' || true
+grep -q 'PROBE PASSED' "$PROBE_LOG"

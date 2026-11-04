@@ -325,7 +325,9 @@ link: val is byte [ val = (inst_start + 2) & 0xffff; ] { export *[const]:2 val; 
 :DSR ra,rb is op8=0xB7 & ra & ra_1 & da32 & rb & db32 { sub32(ra, ra_1, da32, db32); }
 :DS ra,mem2 is (op8=0xB6 & ra & ra_1) ... & mem2 { local left:4 = (zext(ra) << 16) | zext(ra_1); sub32(ra, ra_1, left, mem2); }
 
-# Absolute value and negate
+# Absolute value and negate. On the most negative value, the standard writes the result and
+# then exits on overflow. NEG and DNEG therefore leave CS alone. ABS and DABS set it anyway,
+# because the standard gives them a CS row for exactly that result.
 :ABS ra,rb is op8=0xA4 & ra & rb {
 	local value:2 = rb;
 	if (value s>= 0) goto <positive>;
@@ -342,8 +344,21 @@ link: val is byte [ val = (inst_start + 2) & 0xffff; ] { export *[const]:2 val; 
 	set32(ra, ra_1, value);
 	zn(value);
 }
-:NEG ra,rb is op8=0xB4 & ra & rb { ra = -rb; zn(ra); }
-:DNEG ra,rb is op8=0xB5 & ra & ra_1 & rb & db32 { local value:4 = -db32; set32(ra, ra_1, value); zn(value); }
+:NEG ra,rb is op8=0xB4 & ra & rb {
+	local value:2 = rb;
+	ra = -value;
+	if (value == 0x8000) goto <exit>;
+	zn(ra);
+<exit>
+}
+:DNEG ra,rb is op8=0xB5 & ra & ra_1 & rb & db32 {
+	local before:4 = db32;
+	local value:4 = -before;
+	set32(ra, ra_1, value);
+	if (before == 0x80000000) goto <exit>;
+	zn(value);
+<exit>
+}
 
 # Multiply with a 16-bit product
 :MSR ra,rb is op8=0xC1 & ra & rb { multiply16(ra, rb); }
@@ -445,10 +460,11 @@ link: val is byte [ val = (inst_start + 2) & 0xffff; ] { export *[const]:2 val; 
 :DSRA rb,count_hi is op8=0x67 & rb & rb_1 & db32 & count_hi { local value:4 = db32 s>> count_hi; set32(rb, rb_1, value); zn(value); }
 :DSLC rb,count_hi is op8=0x68 & rb & rb_1 & db32 & count_hi { local value:4 = (db32 << count_hi) | (db32 >> (32 - count_hi)); set32(rb, rb_1, value); zn(value); }
 
-# Shifts by a signed count in RB: positive is left. Past the limit they do nothing.
+# Shifts by a signed count in RB: positive is left. Past the limit the standard raises an
+# overflow and exits, so neither the register nor CS changes.
 :SLR ra,rb is op8=0x6A & ra & rb {
 	local n:2 = rb;
-	if ((n s> 16) || (n s< -16)) goto <done>;
+	if ((n s> 16) || (n s< -16)) goto <exit>;
 	if (n s< 0) goto <right>;
 	ra = ra << n;
 	goto <done>;
@@ -456,10 +472,11 @@ link: val is byte [ val = (inst_start + 2) & 0xffff; ] { export *[const]:2 val; 
 	ra = ra >> (-n);
 <done>
 	zn(ra);
+<exit>
 }
 :SAR ra,rb is op8=0x6B & ra & rb {
 	local n:2 = rb;
-	if ((n s> 16) || (n s< -16)) goto <done>;
+	if ((n s> 16) || (n s< -16)) goto <exit>;
 	if (n s< 0) goto <right>;
 	ra = ra << n;
 	goto <done>;
@@ -467,10 +484,11 @@ link: val is byte [ val = (inst_start + 2) & 0xffff; ] { export *[const]:2 val; 
 	ra = ra s>> (-n);
 <done>
 	zn(ra);
+<exit>
 }
 :SCR ra,rb is op8=0x6C & ra & rb {
 	local n:2 = rb;
-	if ((n s> 16) || (n s< -16)) goto <done>;
+	if ((n s> 16) || (n s< -16)) goto <exit>;
 	if (n s< 0) goto <right>;
 	ra = (ra << n) | (ra >> (16 - n));
 	goto <done>;
@@ -478,11 +496,12 @@ link: val is byte [ val = (inst_start + 2) & 0xffff; ] { export *[const]:2 val; 
 	ra = (ra >> (-n)) | (ra << (16 + n));
 <done>
 	zn(ra);
+<exit>
 }
 :DSLR ra,rb is op8=0x6D & ra & ra_1 & da32 & rb {
 	local n:2 = rb;
 	local value:4 = da32;
-	if ((n s> 32) || (n s< -32)) goto <done>;
+	if ((n s> 32) || (n s< -32)) goto <exit>;
 	if (n s< 0) goto <right>;
 	value = value << n;
 	goto <done>;
@@ -491,11 +510,12 @@ link: val is byte [ val = (inst_start + 2) & 0xffff; ] { export *[const]:2 val; 
 <done>
 	set32(ra, ra_1, value);
 	zn(value);
+<exit>
 }
 :DSAR ra,rb is op8=0x6E & ra & ra_1 & da32 & rb {
 	local n:2 = rb;
 	local value:4 = da32;
-	if ((n s> 32) || (n s< -32)) goto <done>;
+	if ((n s> 32) || (n s< -32)) goto <exit>;
 	if (n s< 0) goto <right>;
 	value = value << n;
 	goto <done>;
@@ -504,11 +524,12 @@ link: val is byte [ val = (inst_start + 2) & 0xffff; ] { export *[const]:2 val; 
 <done>
 	set32(ra, ra_1, value);
 	zn(value);
+<exit>
 }
 :DSCR ra,rb is op8=0x6F & ra & ra_1 & da32 & rb {
 	local n:2 = rb;
 	local value:4 = da32;
-	if ((n s> 32) || (n s< -32)) goto <done>;
+	if ((n s> 32) || (n s< -32)) goto <exit>;
 	if (n s< 0) goto <right>;
 	value = (value << n) | (value >> (32 - n));
 	goto <done>;
@@ -517,6 +538,7 @@ link: val is byte [ val = (inst_start + 2) & 0xffff; ] { export *[const]:2 val; 
 <done>
 	set32(ra, ra_1, value);
 	zn(value);
+<exit>
 }
 
 # Exchange

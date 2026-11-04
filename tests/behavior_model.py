@@ -179,15 +179,16 @@ def shift_by_register(s, v, words, kind):
     bits = 16 * words
     n = signed(s.r[v["RB"]], 16)
     value = s.get(v["RA"], words)
-    if abs(n) <= bits:
-        if kind == "cyclic":
-            value = rotate_left(value, n % bits, bits)
-        elif n >= 0:
-            value = shift_left(value, n, bits)
-        elif kind == "logical":
-            value >>= -n
-        else:
-            value = shift_right_arithmetic(value, -n, bits)
+    if abs(n) > bits:
+        return  # overflow, then exit: nothing changes
+    if kind == "cyclic":
+        value = rotate_left(value, n % bits, bits)
+    elif n >= 0:
+        value = shift_left(value, n, bits)
+    elif kind == "logical":
+        value >>= -n
+    else:
+        value = shift_right_arithmetic(value, -n, bits)
     s.put(v["RA"], words, value)
     s.cs(value, bits)
 
@@ -343,12 +344,16 @@ def execute(s, name, v, mode):
         s.cs(value, 32)
     elif name == "NEG":
         value = -s.r[v["RB"]] & M16
+        exits = s.r[v["RB"]] == 0x8000  # overflow, then exit before CS
         s.r[v["RA"]] = value
-        s.cs(value, 16)
+        if not exits:
+            s.cs(value, 16)
     elif name == "DNEG":
         value = -s.get(v["RB"], 2) & M32
+        exits = s.get(v["RB"], 2) == 0x80000000
         s.put(v["RA"], 2, value)
-        s.cs(value, 32)
+        if not exits:
+            s.cs(value, 32)
     elif name in MUL16:
         product = signed(s.r[v["RA"]], 16) * signed(operand(s, v, mode), 16)
         s.r[v["RA"]] = product & M16
@@ -573,6 +578,14 @@ def vector(rng, name, instruction):
     s = State(rng, words)
     if name == "MOV":
         s.r[(values["RA"] + 1) & 15] = rng.randrange(5)  # keep the copy short
+    # Random values almost never land on these limits, where the behavior changes.
+    elif name in ("SLR", "SAR", "SCR", "DSLR", "DSAR", "DSCR") and rng.random() < 0.5:
+        limit = 32 if name[0] == "D" else 16
+        s.r[values["RB"]] = rng.choice((-limit - 1, -limit, -limit + 1, limit - 1, limit, limit + 1)) & M16
+    elif name in ("ABS", "NEG") and rng.random() < 0.25:
+        s.r[values["RB"]] = 0x8000
+    elif name in ("DABS", "DNEG") and rng.random() < 0.25:
+        s.put(values["RB"], 2, 0x80000000)
     before = format_state(s)
     execute(s, name, values, effective_mode(instruction))
     # Guard words beside each write catch writes to the wrong size or address.

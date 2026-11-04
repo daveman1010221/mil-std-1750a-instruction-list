@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<language_definitions>
+  <language processor="MIL1750A"
+            endian="big"
+            size="16"
+            variant="default"
+            version="1.0"
+            slafile="MIL1750A.sla"
+            processorspec="MIL1750A.pspec"
+            id="MIL1750A:BE:16:default">
+    <description>MIL-STD-1750A 16-bit instruction set architecture</description>
+    <compiler name="default" spec="MIL1750A.cspec" id="default"/>
+  </language>
+</language_definitions>

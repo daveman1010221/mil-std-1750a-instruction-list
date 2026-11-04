@@ -1,0 +1,357 @@
+# MIL-STD-1750A, disassembly stage.
+#
+# Only control flow has p-code, because the disassembler needs it to follow branches.
+# Everything else is unimpl, and nothing sets CS yet, so don't trust decompiler output.
+# Instruction and operand references share one space; the optional MMU isn't modeled.
+
+define endian=big;
+define alignment=2;
+define space ram type=ram_space size=2 wordsize=2 default;
+define space register type=register_space size=2;
+
+define register offset=0x00 size=2 [ R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 ];
+define register offset=0x40 size=2 [ IC SW MK PI FT ];
+# Condition status, as a 4-bit value with bits C P Z N.
+define register offset=0x60 size=1 [ CS ];
+
+define token instr (16)
+	op8   = (8, 15)
+	op6   = (10, 15)
+	br    = (8, 9)
+	ra    = (4, 7)
+	hi4   = (4, 7)
+	c     = (4, 7)
+	rb    = (0, 3)
+	rx    = (0, 3)
+	low4  = (0, 3)
+	byte  = (0, 7)
+	d8    = (0, 7) signed
+;
+
+define token data (16)
+	imm16 = (0, 15)
+;
+
+attach variables [ ra rb rx ] [ R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 ];
+
+# RX=0 means no indexing, and the standard writes those forms without the operand.
+idx: is rx=0 { export 0:2; }
+idx: ","^rx is rx { export rx; }
+
+base: "B12" is br=0 { export R12; }
+base: "B13" is br=1 { export R13; }
+base: "B14" is br=2 { export R14; }
+base: "B15" is br=3 { export R15; }
+
+# Counts of 1 to 16 are encoded as N-1.
+count_hi: val is hi4 [ val = hi4 + 1; ] { export *[const]:2 val; }
+count_low: val is low4 [ val = low4 + 1; ] { export *[const]:2 val; }
+
+direct: imm16 is imm16 { export *[ram]:2 imm16; }
+relative: val is d8 [ val = (inst_start + d8) & 0xffff; ] { export *[ram]:2 val; }
+# Every instruction that stores a return address is two words long. Computing this at
+# decode time keeps it in words, whatever inst_next's units are in a wordsize=2 space.
+link: val is byte [ val = (inst_start + 2) & 0xffff; ] { export *[const]:2 val; }
+
+# Base relative
+:LB base,byte is op6=0 & base & byte unimpl
+:DLB base,byte is op6=1 & base & byte unimpl
+:STB base,byte is op6=2 & base & byte unimpl
+:DSTB base,byte is op6=3 & base & byte unimpl
+:AB base,byte is op6=4 & base & byte unimpl
+:SBB base,byte is op6=5 & base & byte unimpl
+:MB base,byte is op6=6 & base & byte unimpl
+:DB base,byte is op6=7 & base & byte unimpl
+:FAB base,byte is op6=8 & base & byte unimpl
+:FSB base,byte is op6=9 & base & byte unimpl
+:FMB base,byte is op6=10 & base & byte unimpl
+:FDB base,byte is op6=11 & base & byte unimpl
+:ORB base,byte is op6=12 & base & byte unimpl
+:ANDB base,byte is op6=13 & base & byte unimpl
+:CB base,byte is op6=14 & base & byte unimpl
+:FCB base,byte is op6=15 & base & byte unimpl
+
+# Base relative indexed
+:LBX base^idx is op6=16 & base & hi4=0 & idx unimpl
+:DLBX base^idx is op6=16 & base & hi4=1 & idx unimpl
+:STBX base^idx is op6=16 & base & hi4=2 & idx unimpl
+:DSTX base^idx is op6=16 & base & hi4=3 & idx unimpl
+:ABX base^idx is op6=16 & base & hi4=4 & idx unimpl
+:SBBX base^idx is op6=16 & base & hi4=5 & idx unimpl
+:MBX base^idx is op6=16 & base & hi4=6 & idx unimpl
+:DBX base^idx is op6=16 & base & hi4=7 & idx unimpl
+:FABX base^idx is op6=16 & base & hi4=8 & idx unimpl
+:FSBX base^idx is op6=16 & base & hi4=9 & idx unimpl
+:FMBX base^idx is op6=16 & base & hi4=10 & idx unimpl
+:FDBX base^idx is op6=16 & base & hi4=11 & idx unimpl
+:CBX base^idx is op6=16 & base & hi4=12 & idx unimpl
+:FCBX base^idx is op6=16 & base & hi4=13 & idx unimpl
+:ANDX base^idx is op6=16 & base & hi4=14 & idx unimpl
+:ORBX base^idx is op6=16 & base & hi4=15 & idx unimpl
+
+# Immediate long with opcode extension
+:AIM ra,imm16 is op8=0x4A & ra & low4=1; imm16 unimpl
+:SIM ra,imm16 is op8=0x4A & ra & low4=2; imm16 unimpl
+:MIM ra,imm16 is op8=0x4A & ra & low4=3; imm16 unimpl
+:MSIM ra,imm16 is op8=0x4A & ra & low4=4; imm16 unimpl
+:DIM ra,imm16 is op8=0x4A & ra & low4=5; imm16 unimpl
+:DVIM ra,imm16 is op8=0x4A & ra & low4=6; imm16 unimpl
+:ANDM ra,imm16 is op8=0x4A & ra & low4=7; imm16 unimpl
+:ORIM ra,imm16 is op8=0x4A & ra & low4=8; imm16 unimpl
+:XORM ra,imm16 is op8=0x4A & ra & low4=9; imm16 unimpl
+:CIM ra,imm16 is op8=0x4A & ra & low4=10; imm16 unimpl
+:NIM ra,imm16 is op8=0x4A & ra & low4=11; imm16 unimpl
+
+# Register direct
+:SVBR ra,rb is op8=0x5A & ra & rb unimpl
+:RVBR ra,rb is op8=0x5C & ra & rb unimpl
+:TVBR ra,rb is op8=0x5E & ra & rb unimpl
+:SLR ra,rb is op8=0x6A & ra & rb unimpl
+:SAR ra,rb is op8=0x6B & ra & rb unimpl
+:SCR ra,rb is op8=0x6C & ra & rb unimpl
+:DSLR ra,rb is op8=0x6D & ra & rb unimpl
+:DSAR ra,rb is op8=0x6E & ra & rb unimpl
+:DSCR ra,rb is op8=0x6F & ra & rb unimpl
+:LR ra,rb is op8=0x81 & ra & rb unimpl
+:DLR ra,rb is op8=0x87 & ra & rb unimpl
+:POPM ra,rb is op8=0x8F & ra & rb unimpl
+:MOV ra,rb is op8=0x93 & ra & rb unimpl
+:PSHM ra,rb is op8=0x9F & ra & rb unimpl
+:AR ra,rb is op8=0xA1 & ra & rb unimpl
+:ABS ra,rb is op8=0xA4 & ra & rb unimpl
+:DABS ra,rb is op8=0xA5 & ra & rb unimpl
+:DAR ra,rb is op8=0xA7 & ra & rb unimpl
+:FAR ra,rb is op8=0xA9 & ra & rb unimpl
+:EFAR ra,rb is op8=0xAB & ra & rb unimpl
+:FABS ra,rb is op8=0xAC & ra & rb unimpl
+:SR ra,rb is op8=0xB1 & ra & rb unimpl
+:NEG ra,rb is op8=0xB4 & ra & rb unimpl
+:DNEG ra,rb is op8=0xB5 & ra & rb unimpl
+:DSR ra,rb is op8=0xB7 & ra & rb unimpl
+:FSR ra,rb is op8=0xB9 & ra & rb unimpl
+:EFSR ra,rb is op8=0xBB & ra & rb unimpl
+:FNEG ra,rb is op8=0xBC & ra & rb unimpl
+:MSR ra,rb is op8=0xC1 & ra & rb unimpl
+:MR ra,rb is op8=0xC5 & ra & rb unimpl
+:DMR ra,rb is op8=0xC7 & ra & rb unimpl
+:FMR ra,rb is op8=0xC9 & ra & rb unimpl
+:EFMR ra,rb is op8=0xCB & ra & rb unimpl
+:DVR ra,rb is op8=0xD1 & ra & rb unimpl
+:DR ra,rb is op8=0xD5 & ra & rb unimpl
+:DDR ra,rb is op8=0xD7 & ra & rb unimpl
+:FDR ra,rb is op8=0xD9 & ra & rb unimpl
+:EFDR ra,rb is op8=0xDB & ra & rb unimpl
+:ORR ra,rb is op8=0xE1 & ra & rb unimpl
+:ANDR ra,rb is op8=0xE3 & ra & rb unimpl
+:XORR ra,rb is op8=0xE5 & ra & rb unimpl
+:NR ra,rb is op8=0xE7 & ra & rb unimpl
+:FIX ra,rb is op8=0xE8 & ra & rb unimpl
+:FLT ra,rb is op8=0xE9 & ra & rb unimpl
+:EFIX ra,rb is op8=0xEA & ra & rb unimpl
+:EFLT ra,rb is op8=0xEB & ra & rb unimpl
+:XWR ra,rb is op8=0xED & ra & rb unimpl
+:CR ra,rb is op8=0xF1 & ra & rb unimpl
+:DCR ra,rb is op8=0xF7 & ra & rb unimpl
+:FCR ra,rb is op8=0xF9 & ra & rb unimpl
+:EFCR ra,rb is op8=0xFB & ra & rb unimpl
+
+# Bit number, register
+:SBR hi4,rb is op8=0x51 & hi4 & rb unimpl
+:RBR hi4,rb is op8=0x54 & hi4 & rb unimpl
+:TBR hi4,rb is op8=0x57 & hi4 & rb unimpl
+
+# Shifts by a constant
+:SLL rb,count_hi is op8=0x60 & rb & count_hi unimpl
+:SRL rb,count_hi is op8=0x61 & rb & count_hi unimpl
+:SRA rb,count_hi is op8=0x62 & rb & count_hi unimpl
+:SLC rb,count_hi is op8=0x63 & rb & count_hi unimpl
+:DSLL rb,count_hi is op8=0x65 & rb & count_hi unimpl
+:DSRL rb,count_hi is op8=0x66 & rb & count_hi unimpl
+:DSRA rb,count_hi is op8=0x67 & rb & count_hi unimpl
+:DSLC rb,count_hi is op8=0x68 & rb & count_hi unimpl
+
+# Immediate short
+:LISP ra,count_low is op8=0x82 & ra & count_low unimpl
+:LISN ra,count_low is op8=0x83 & ra & count_low unimpl
+:AISP ra,count_low is op8=0xA2 & ra & count_low unimpl
+:SISP ra,count_low is op8=0xB2 & ra & count_low unimpl
+:MISP ra,count_low is op8=0xC2 & ra & count_low unimpl
+:MISN ra,count_low is op8=0xC3 & ra & count_low unimpl
+:DISP ra,count_low is op8=0xD2 & ra & count_low unimpl
+:DISN ra,count_low is op8=0xD3 & ra & count_low unimpl
+:CISP ra,count_low is op8=0xF2 & ra & count_low unimpl
+:CISN ra,count_low is op8=0xF3 & ra & count_low unimpl
+
+# Memory, immediate long and XIO: RA,value[,RX]
+:XIO ra,imm16^idx is op8=0x48 & ra & idx; imm16 unimpl
+:VIO ra,imm16^idx is op8=0x49 & ra & idx; imm16 unimpl
+:L ra,imm16^idx is op8=0x80 & ra & idx; imm16 unimpl
+:LI ra,imm16^idx is op8=0x84 & ra & idx; imm16 unimpl
+:LIM ra,imm16^idx is op8=0x85 & ra & idx; imm16 unimpl
+:DL ra,imm16^idx is op8=0x86 & ra & idx; imm16 unimpl
+:DLI ra,imm16^idx is op8=0x88 & ra & idx; imm16 unimpl
+:EFL ra,imm16^idx is op8=0x8A & ra & idx; imm16 unimpl
+:LUB ra,imm16^idx is op8=0x8B & ra & idx; imm16 unimpl
+:LLB ra,imm16^idx is op8=0x8C & ra & idx; imm16 unimpl
+:LUBI ra,imm16^idx is op8=0x8D & ra & idx; imm16 unimpl
+:LLBI ra,imm16^idx is op8=0x8E & ra & idx; imm16 unimpl
+:ST ra,imm16^idx is op8=0x90 & ra & idx; imm16 unimpl
+:STI ra,imm16^idx is op8=0x94 & ra & idx; imm16 unimpl
+:DST ra,imm16^idx is op8=0x96 & ra & idx; imm16 unimpl
+:SRM ra,imm16^idx is op8=0x97 & ra & idx; imm16 unimpl
+:DSTI ra,imm16^idx is op8=0x98 & ra & idx; imm16 unimpl
+:EFST ra,imm16^idx is op8=0x9A & ra & idx; imm16 unimpl
+:STUB ra,imm16^idx is op8=0x9B & ra & idx; imm16 unimpl
+:STLB ra,imm16^idx is op8=0x9C & ra & idx; imm16 unimpl
+:SUBI ra,imm16^idx is op8=0x9D & ra & idx; imm16 unimpl
+:SLBI ra,imm16^idx is op8=0x9E & ra & idx; imm16 unimpl
+:A ra,imm16^idx is op8=0xA0 & ra & idx; imm16 unimpl
+:DA ra,imm16^idx is op8=0xA6 & ra & idx; imm16 unimpl
+:FA ra,imm16^idx is op8=0xA8 & ra & idx; imm16 unimpl
+:EFA ra,imm16^idx is op8=0xAA & ra & idx; imm16 unimpl
+:S ra,imm16^idx is op8=0xB0 & ra & idx; imm16 unimpl
+:DS ra,imm16^idx is op8=0xB6 & ra & idx; imm16 unimpl
+:FS ra,imm16^idx is op8=0xB8 & ra & idx; imm16 unimpl
+:EFS ra,imm16^idx is op8=0xBA & ra & idx; imm16 unimpl
+:MS ra,imm16^idx is op8=0xC0 & ra & idx; imm16 unimpl
+:M ra,imm16^idx is op8=0xC4 & ra & idx; imm16 unimpl
+:DM ra,imm16^idx is op8=0xC6 & ra & idx; imm16 unimpl
+:FM ra,imm16^idx is op8=0xC8 & ra & idx; imm16 unimpl
+:EFM ra,imm16^idx is op8=0xCA & ra & idx; imm16 unimpl
+:DV ra,imm16^idx is op8=0xD0 & ra & idx; imm16 unimpl
+:D ra,imm16^idx is op8=0xD4 & ra & idx; imm16 unimpl
+:DD ra,imm16^idx is op8=0xD6 & ra & idx; imm16 unimpl
+:FD ra,imm16^idx is op8=0xD8 & ra & idx; imm16 unimpl
+:EFD ra,imm16^idx is op8=0xDA & ra & idx; imm16 unimpl
+:OR ra,imm16^idx is op8=0xE0 & ra & idx; imm16 unimpl
+:AND ra,imm16^idx is op8=0xE2 & ra & idx; imm16 unimpl
+:XOR ra,imm16^idx is op8=0xE4 & ra & idx; imm16 unimpl
+:N ra,imm16^idx is op8=0xE6 & ra & idx; imm16 unimpl
+:C ra,imm16^idx is op8=0xF0 & ra & idx; imm16 unimpl
+:CBL ra,imm16^idx is op8=0xF4 & ra & idx; imm16 unimpl
+:DC ra,imm16^idx is op8=0xF6 & ra & idx; imm16 unimpl
+:FC ra,imm16^idx is op8=0xF8 & ra & idx; imm16 unimpl
+:EFC ra,imm16^idx is op8=0xFA & ra & idx; imm16 unimpl
+
+# Memory with an N operand encoded as-is: N,ADDR[,RX]
+:SB hi4,imm16^idx is op8=0x50 & hi4 & idx; imm16 unimpl
+:SBI hi4,imm16^idx is op8=0x52 & hi4 & idx; imm16 unimpl
+:RB hi4,imm16^idx is op8=0x53 & hi4 & idx; imm16 unimpl
+:RBI hi4,imm16^idx is op8=0x55 & hi4 & idx; imm16 unimpl
+:TB hi4,imm16^idx is op8=0x56 & hi4 & idx; imm16 unimpl
+:TBI hi4,imm16^idx is op8=0x58 & hi4 & idx; imm16 unimpl
+:TSB hi4,imm16^idx is op8=0x59 & hi4 & idx; imm16 unimpl
+:LM hi4,imm16^idx is op8=0x89 & hi4 & idx; imm16 unimpl
+:STC hi4,imm16^idx is op8=0x91 & hi4 & idx; imm16 unimpl
+:STCI hi4,imm16^idx is op8=0x92 & hi4 & idx; imm16 unimpl
+:STM hi4,imm16^idx is op8=0x99 & hi4 & idx; imm16 unimpl
+
+# Memory with a count of 1 to 16
+:INCM count_hi,imm16^idx is op8=0xA3 & count_hi & idx; imm16 unimpl
+:DECM count_hi,imm16^idx is op8=0xB3 & count_hi & idx; imm16 unimpl
+
+# Special
+:BIF byte is op8=0x4F & byte unimpl
+:BEX low4 is op8=0x77 & hi4=0 & low4 unimpl
+:XBR ra is op8=0xEC & ra & low4=0 unimpl
+:NOP is op8=0xFF & byte=0x00 { }
+:BPT is op8=0xFF & byte=0xFF unimpl
+
+# IC-relative branches. The standard matches CS against X010 and so on, ignoring carry.
+:BR relative is op8=0x74 & relative { goto relative; }
+:BEZ relative is op8=0x75 & relative { if ((CS & 7) == 2) goto relative; }
+:BLT relative is op8=0x76 & relative { if ((CS & 7) == 1) goto relative; }
+:BLE relative is op8=0x78 & relative { if (((CS & 7) == 2) || ((CS & 7) == 1)) goto relative; }
+:BGT relative is op8=0x79 & relative { if ((CS & 7) == 4) goto relative; }
+:BNZ relative is op8=0x7A & relative { if (((CS & 7) == 4) || ((CS & 7) == 1)) goto relative; }
+:BGE relative is op8=0x7B & relative { if (((CS & 7) == 4) || ((CS & 7) == 2)) goto relative; }
+
+# C=0 never jumps, and C=7 or C=F always jumps.
+never: "0x0" is c=0 { }
+always: "0x7" is c=7 { }
+always: "0xF" is c=15 { }
+
+:JC never,imm16^idx is op8=0x70 & never & idx; imm16 { }
+:JC always,direct is op8=0x70 & always & rx=0; direct { goto direct; }
+:JC always,imm16,rx is op8=0x70 & always & rx; imm16 {
+	local target:2 = imm16 + rx;
+	goto [target];
+}
+:JC c,direct is op8=0x70 & c & rx=0; direct {
+	local mask:1 = c;
+	if ((CS & mask) != 0) goto direct;
+}
+:JC c,imm16,rx is op8=0x70 & c & rx; imm16 {
+	local mask:1 = c;
+	local target:2 = imm16 + rx;
+	if ((CS & mask) == 0) goto inst_next;
+	goto [target];
+}
+
+:JCI never,imm16^idx is op8=0x71 & never & idx; imm16 { }
+:JCI always,imm16^idx is op8=0x71 & always & idx; imm16 {
+	local pointer:2 = imm16 + idx;
+	local target:2 = *[ram]:2 pointer;
+	goto [target];
+}
+:JCI c,imm16^idx is op8=0x71 & c & idx; imm16 {
+	local mask:1 = c;
+	local pointer:2 = imm16 + idx;
+	local target:2 = *[ram]:2 pointer;
+	if ((CS & mask) == 0) goto inst_next;
+	goto [target];
+}
+
+# Subroutines. If RA = RX, the standard computes the derived address first.
+:JS ra,direct is op8=0x72 & ra & rx=0 & link; direct {
+	ra = link;
+	call direct;
+}
+:JS ra,imm16,rx is op8=0x72 & ra & rx & link; imm16 {
+	local target:2 = imm16 + rx;
+	ra = link;
+	call [target];
+}
+:SOJ ra,direct is op8=0x73 & ra & rx=0; direct {
+	ra = ra - 1;
+	if (ra != 0) goto direct;
+}
+:SOJ ra,imm16,rx is op8=0x73 & ra & rx; imm16 {
+	local target:2 = imm16 + rx;
+	ra = ra - 1;
+	if (ra == 0) goto inst_next;
+	goto [target];
+}
+:SJS ra,direct is op8=0x7E & ra & rx=0 & link; direct {
+	ra = ra - 1;
+	*[ram]:2 ra = link;
+	call direct;
+}
+:SJS ra,imm16,rx is op8=0x7E & ra & rx & link; imm16 {
+	local target:2 = imm16 + rx;
+	ra = ra - 1;
+	*[ram]:2 ra = link;
+	call [target];
+}
+:URS ra is op8=0x7F & ra & low4=0 {
+	local target:2 = *[ram]:2 ra;
+	ra = ra + 1;
+	return [target];
+}
+
+# Load status: MK, SW and IC come from three consecutive words.
+:LST imm16^idx is op8=0x7D & hi4=0 & idx; imm16 {
+	local pointer:2 = imm16 + idx;
+	MK = *[ram]:2 pointer;
+	SW = *[ram]:2 (pointer + 1);
+	local target:2 = *[ram]:2 (pointer + 2);
+	return [target];
+}
+:LSTI imm16^idx is op8=0x7C & hi4=0 & idx; imm16 {
+	local address:2 = imm16 + idx;
+	local pointer:2 = *[ram]:2 address;
+	MK = *[ram]:2 pointer;
+	SW = *[ram]:2 (pointer + 1);
+	local target:2 = *[ram]:2 (pointer + 2);
+	return [target];
+}

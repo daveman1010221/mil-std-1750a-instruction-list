@@ -5,3 +5,4 @@ __pycache__/
 *.part
 split/
 tests/.refs/
+*.sla

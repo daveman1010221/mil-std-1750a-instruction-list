@@ -70,11 +70,40 @@ Some hand edits to the generated `.slaspec` will remain, as the generator's READ
 - Sign-extend and add IC to the branch displacements.
 - Account for 1750A addresses being 16-bit word addresses.
 
+## Ghidra processor module
+
+`ghidra/MIL1750A` is a hand-written disassembly module, which replaces the generator
+route above. It targets the same base instruction set. To install it:
+
+```sh
+cp -r ghidra/MIL1750A "$GHIDRA_INSTALL_DIR/Ghidra/Processors/"
+"$GHIDRA_INSTALL_DIR/support/sleigh" \
+  "$GHIDRA_INSTALL_DIR/Ghidra/Processors/MIL1750A/data/languages/MIL1750A.slaspec"
+```
+
+Then import a raw big-endian binary with the language `MIL1750A:BE:16:default`. Addresses
+are 16-bit word addresses, as in the standard. On nix, the Ghidra install is read-only, so
+use a writable copy.
+
+What this stage does and doesn't do:
+
+- **Disassembly:** complete for the base standard, with branch and call targets resolved
+  and followed. IC-relative branches show their target address, not the raw displacement.
+- **Decompiler output can't be trusted yet.** Only control-flow instructions have p-code.
+  The rest are `unimpl`, and nothing sets the condition status that branches test.
+- **Data references:** none yet, because they come from p-code. Memory operands display
+  as plain numbers.
+- **Not modeled:** the optional MMU, chip-specific extensions, and a real calling
+  convention (the `.cspec` is a placeholder). `BEX` and `BIF` are treated as falling
+  through, and any extra words a `BIF` uses will disassemble as instructions.
+
 ## Validation
 
 ```sh
 python3 -m unittest discover -s tests                 # quick, about 30 seconds
 ./generate_1750a.py --split-dir split && tests/validate_output.py split/op_*.txt
+GHIDRA_INSTALL_DIR=/path/to/ghidra tests/test_sleigh.sh        # module, about 1 minute
+GHIDRA_INSTALL_DIR=/path/to/ghidra FULL=1 tests/test_sleigh.sh # every encoding
 tests/e2e_generator.sh                                # needs a compiler and Ghidra
 ```
 
@@ -83,6 +112,7 @@ tests/e2e_generator.sh                                # needs a compiler and Ghi
 | `validate_output.py` | Re-encodes every line through format boxes extracted from the standard, sharing no code with the generator. With strictly increasing opcodes and exact per-opcode counts, this proves the file is exactly the set of valid encodings. |
 | `test_generator.py` | Hand-worked golden lines, plus corrupted output (dropped lines, swapped operands, off-by-one counts and more) that the validator must reject. |
 | `test_references.py` | Compares the table with the standard's text and, read as plain text, with `as1750` and `dism1750` from [milstd1750tools](https://github.com/okellogg/milstd1750tools). Also applies the generator's tokenizer and register rules to the output. |
+| `test_sleigh.sh` | Compiles the module and decodes the list with it, checking each encoding's length, text and flow type and targets. Also checks that every first word the standard doesn't define fails to decode, branch targets across the address wrap, and flow following on a small program. Behavior beyond control flow is not tested. |
 | `e2e_generator.sh` | Runs the real generator, SLEIGH compiler and generator-validator on a subset. |
 
 `dism1750.c` disagrees with the standard on three instruction lengths, which

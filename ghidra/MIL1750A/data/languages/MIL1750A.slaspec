@@ -1,8 +1,17 @@
-# MIL-STD-1750A, disassembly stage.
+# MIL-STD-1750A
 #
-# Only control flow has p-code, because the disassembler needs it to follow branches.
-# Everything else is unimpl, and nothing sets CS yet, so don't trust decompiler output.
-# Instruction and operand references share one space; the optional MMU isn't modeled.
+# Semantics follow section 5 of the standard, with these deliberate limits:
+#
+# - Fixed point overflow and other pending interrupts aren't modeled. Faults would add a
+#   test to almost every instruction and obscure the decompiler's output.
+# - Floating point arithmetic is named operations (fadd32 and so on), not bit-level
+#   p-code, because Ghidra's float ops assume IEEE formats. Moves between registers and
+#   memory, and the condition status they set, are real p-code.
+# - XIO, VIO, BEX, BIF and BPT are named operations.
+# - The branches test one flag where the standard compares all of CS. Every instruction
+#   leaves exactly one of P, Z and N set, so they only differ after LST loads an
+#   unusual status word.
+# - The optional MMU isn't modeled: instruction and operand references share one space.
 
 define endian=big;
 define alignment=2;
@@ -11,17 +20,21 @@ define space register type=register_space size=2;
 
 define register offset=0x00 size=2 [ R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 ];
 define register offset=0x40 size=2 [ IC SW MK PI FT ];
-# Condition status, as a 4-bit value with bits C P Z N.
-define register offset=0x60 size=1 [ CS ];
+# Condition status bits, each 0 or 1. Carry, positive, zero, negative.
+define register offset=0x60 size=1 [ CS_C CS_P CS_Z CS_N ];
 
 define token instr (16)
 	op8   = (8, 15)
 	op6   = (10, 15)
 	br    = (8, 9)
 	ra    = (4, 7)
+	ra_1  = (4, 7)
+	ra_2  = (4, 7)
 	hi4   = (4, 7)
 	c     = (4, 7)
 	rb    = (0, 3)
+	rb_1  = (0, 3)
+	rb_2  = (0, 3)
 	rx    = (0, 3)
 	low4  = (0, 3)
 	byte  = (0, 7)
@@ -33,6 +46,159 @@ define token data (16)
 ;
 
 attach variables [ ra rb rx ] [ R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 ];
+# The register after RA or RB. The register set wraps, so R15 pairs with R0.
+attach variables [ ra_1 rb_1 ] [ R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 R0 ];
+attach variables [ ra_2 rb_2 ] [ R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 R0 R1 ];
+
+define pcodeop xio;
+define pcodeop vio;
+define pcodeop bex;
+define pcodeop bif;
+define pcodeop breakpoint;
+define pcodeop fadd32;
+define pcodeop fsub32;
+define pcodeop fmul32;
+define pcodeop fdiv32;
+define pcodeop fabs32;
+define pcodeop fneg32;
+define pcodeop fcmp32;
+define pcodeop fix32;
+define pcodeop flt32;
+define pcodeop fadd48;
+define pcodeop fsub48;
+define pcodeop fmul48;
+define pcodeop fdiv48;
+define pcodeop fcmp48;
+define pcodeop fix48;
+define pcodeop flt48;
+
+# Condition status. These clear carry, as the standard's "(CS) <-- 0010" forms do.
+macro zn(value) {
+	CS_C = 0;
+	CS_Z = value == 0;
+	CS_N = value s< 0;
+	CS_P = value s> 0;
+}
+
+macro zn_carry(value, carry_out) {
+	CS_C = carry_out;
+	CS_Z = value == 0;
+	CS_N = value s< 0;
+	CS_P = value s> 0;
+}
+
+macro compare(left, right) {
+	CS_C = 0;
+	CS_Z = left == right;
+	CS_N = left s< right;
+	CS_P = left s> right;
+}
+
+# The result of fcmp32 or fcmp48: negative, zero or positive.
+macro compare_result(result) {
+	CS_C = 0;
+	CS_Z = result == 0;
+	CS_N = result s< 0;
+	CS_P = result s> 0;
+}
+
+# Bit N, where bit 0 is the most significant bit.
+macro test_bit(value, n) {
+	local set:1 = ((value >> (15 - n)) & 1) != 0;
+	CS_C = 0;
+	CS_Z = !set;
+	CS_N = set && (n == 0);
+	CS_P = set && (n != 0);
+}
+
+macro set32(high, low, value) {
+	high = value(2);
+	low = value:2;
+}
+
+macro set48(high, middle, low, value) {
+	high = value(4);
+	middle = value(2);
+	low = value:2;
+}
+
+macro load_status(value) {
+	SW = value;
+	CS_C = (SW & 0x8000) != 0;
+	CS_P = (SW & 0x4000) != 0;
+	CS_Z = (SW & 0x2000) != 0;
+	CS_N = (SW & 0x1000) != 0;
+}
+
+macro add16(dest, operand) {
+	local value:2 = operand;
+	local carry_out:1 = carry(dest, value);
+	dest = dest + value;
+	zn_carry(dest, carry_out);
+}
+
+# Subtraction adds the complement and one, so carry means no borrow.
+macro sub16(dest, operand) {
+	local value:2 = operand;
+	local carry_out:1 = dest >= value;
+	dest = dest - value;
+	zn_carry(dest, carry_out);
+}
+
+macro add32(high, low, left, operand) {
+	local a:4 = left;
+	local b:4 = operand;
+	local result:4 = a + b;
+	zn_carry(result, carry(a, b));
+	set32(high, low, result);
+}
+
+macro sub32(high, low, left, operand) {
+	local a:4 = left;
+	local b:4 = operand;
+	local result:4 = a - b;
+	zn_carry(result, a >= b);
+	set32(high, low, result);
+}
+
+macro multiply16(dest, operand) {
+	dest = dest * operand;
+	zn(dest);
+}
+
+macro multiply32(high, low, left, operand) {
+	local product:4 = sext(left) * sext(operand);
+	set32(high, low, product);
+	zn(product);
+}
+
+macro divide_short(quotient_reg, remainder_reg, operand) {
+	local dividend:2 = quotient_reg;
+	local divisor:2 = operand;
+	quotient_reg = dividend s/ divisor;
+	remainder_reg = dividend s% divisor;
+	zn(quotient_reg);
+}
+
+macro divide_long(high, low, left, operand) {
+	local dividend:4 = left;
+	local divisor:4 = sext(operand);
+	local quotient:4 = dividend s/ divisor;
+	local remainder:4 = dividend s% divisor;
+	high = quotient:2;
+	low = remainder:2;
+	zn(high);
+}
+
+# Values of register pairs and triples.
+da32: is ra & ra_1 { local value:4 = (zext(ra) << 16) | zext(ra_1); export value; }
+db32: is rb & rb_1 { local value:4 = (zext(rb) << 16) | zext(rb_1); export value; }
+da48: is ra & ra_1 & ra_2 { local value:6 = (zext(ra) << 32) | (zext(ra_1) << 16) | zext(ra_2); export value; }
+db48: is rb & rb_1 & rb_2 { local value:6 = (zext(rb) << 32) | (zext(rb_1) << 16) | zext(rb_2); export value; }
+
+# The base relative forms have a fixed accumulator: R2, R2 and R3, or R0 and R1.
+r01: is br { local value:4 = (zext(R0) << 16) | zext(R1); export value; }
+r23: is br { local value:4 = (zext(R2) << 16) | zext(R3); export value; }
 
 # RX=0 means no indexing, and the standard writes those forms without the operand.
 idx: is rx=0 { export 0:2; }
@@ -46,6 +212,30 @@ base: "B15" is br=3 { export R15; }
 # Counts of 1 to 16 are encoded as N-1.
 count_hi: val is hi4 [ val = hi4 + 1; ] { export *[const]:2 val; }
 count_low: val is low4 [ val = low4 + 1; ] { export *[const]:2 val; }
+# The negative short immediates are written as a positive N.
+negative_low: val is low4 [ val = low4 + 1; ] { local negated:2 = -val; export negated; }
+
+# Memory direct and indexed operands, by size in words.
+mem: imm16 is rx=0; imm16 { export *[ram]:2 imm16; }
+mem: imm16,rx is rx; imm16 { local address:2 = imm16 + rx; export *[ram]:2 address; }
+mem2: imm16 is rx=0; imm16 { export *[ram]:4 imm16; }
+mem2: imm16,rx is rx; imm16 { local address:2 = imm16 + rx; export *[ram]:4 address; }
+mem3: imm16 is rx=0; imm16 { export *[ram]:6 imm16; }
+mem3: imm16,rx is rx; imm16 { local address:2 = imm16 + rx; export *[ram]:6 address; }
+
+# Memory indirect operands: the address of the address.
+imem: imm16^idx is idx; imm16 { local pointer:2 = imm16 + idx; local address:2 = *[ram]:2 pointer; export *[ram]:2 address; }
+imem2: imm16^idx is idx; imm16 { local pointer:2 = imm16 + idx; local address:2 = *[ram]:2 pointer; export *[ram]:4 address; }
+
+# Base relative operands.
+bmem: base,byte is base & byte { local address:2 = base + byte; export *[ram]:2 address; }
+bmem2: base,byte is base & byte { local address:2 = base + byte; export *[ram]:4 address; }
+bxmem: base^idx is base & idx { local address:2 = base + idx; export *[ram]:2 address; }
+bxmem2: base^idx is base & idx { local address:2 = base + idx; export *[ram]:4 address; }
+
+# A derived address, or an indexable immediate, as a value.
+ea: imm16^idx is idx; imm16 { local value:2 = imm16 + idx; export value; }
+imm: imm16 is imm16 { export *[const]:2 imm16; }
 
 direct: imm16 is imm16 { export *[ram]:2 imm16; }
 relative: val is d8 [ val = (inst_start + d8) & 0xffff; ] { export *[ram]:2 val; }
@@ -53,223 +243,365 @@ relative: val is d8 [ val = (inst_start + d8) & 0xffff; ] { export *[ram]:2 val;
 # decode time keeps it in words, whatever inst_next's units are in a wordsize=2 space.
 link: val is byte [ val = (inst_start + 2) & 0xffff; ] { export *[const]:2 val; }
 
-# Base relative
-:LB base,byte is op6=0 & base & byte unimpl
-:DLB base,byte is op6=1 & base & byte unimpl
-:STB base,byte is op6=2 & base & byte unimpl
-:DSTB base,byte is op6=3 & base & byte unimpl
-:AB base,byte is op6=4 & base & byte unimpl
-:SBB base,byte is op6=5 & base & byte unimpl
-:MB base,byte is op6=6 & base & byte unimpl
-:DB base,byte is op6=7 & base & byte unimpl
-:FAB base,byte is op6=8 & base & byte unimpl
-:FSB base,byte is op6=9 & base & byte unimpl
-:FMB base,byte is op6=10 & base & byte unimpl
-:FDB base,byte is op6=11 & base & byte unimpl
-:ORB base,byte is op6=12 & base & byte unimpl
-:ANDB base,byte is op6=13 & base & byte unimpl
-:CB base,byte is op6=14 & base & byte unimpl
-:FCB base,byte is op6=15 & base & byte unimpl
+@include "MIL1750A_multi.sinc"
 
-# Base relative indexed
-:LBX base^idx is op6=16 & base & hi4=0 & idx unimpl
-:DLBX base^idx is op6=16 & base & hi4=1 & idx unimpl
-:STBX base^idx is op6=16 & base & hi4=2 & idx unimpl
-:DSTX base^idx is op6=16 & base & hi4=3 & idx unimpl
-:ABX base^idx is op6=16 & base & hi4=4 & idx unimpl
-:SBBX base^idx is op6=16 & base & hi4=5 & idx unimpl
-:MBX base^idx is op6=16 & base & hi4=6 & idx unimpl
-:DBX base^idx is op6=16 & base & hi4=7 & idx unimpl
-:FABX base^idx is op6=16 & base & hi4=8 & idx unimpl
-:FSBX base^idx is op6=16 & base & hi4=9 & idx unimpl
-:FMBX base^idx is op6=16 & base & hi4=10 & idx unimpl
-:FDBX base^idx is op6=16 & base & hi4=11 & idx unimpl
-:CBX base^idx is op6=16 & base & hi4=12 & idx unimpl
-:FCBX base^idx is op6=16 & base & hi4=13 & idx unimpl
-:ANDX base^idx is op6=16 & base & hi4=14 & idx unimpl
-:ORBX base^idx is op6=16 & base & hi4=15 & idx unimpl
+# Single precision load
+:LR ra,rb is op8=0x81 & ra & rb { ra = rb; zn(ra); }
+:LB bmem is op6=0 & bmem { R2 = bmem; zn(R2); }
+:LBX bxmem is op6=16 & hi4=0 & bxmem { R2 = bxmem; zn(R2); }
+:LISP ra,count_low is op8=0x82 & ra & count_low { ra = count_low; zn(ra); }
+:LISN ra,negative_low is op8=0x83 & ra & negative_low { ra = negative_low; zn(ra); }
+:L ra,mem is (op8=0x80 & ra) ... & mem { ra = mem; zn(ra); }
+:LIM ra,ea is (op8=0x85 & ra) ... & ea { ra = ea; zn(ra); }
+:LI ra,imem is (op8=0x84 & ra) ... & imem { ra = imem; zn(ra); }
 
-# Immediate long with opcode extension
-:AIM ra,imm16 is op8=0x4A & ra & low4=1; imm16 unimpl
-:SIM ra,imm16 is op8=0x4A & ra & low4=2; imm16 unimpl
-:MIM ra,imm16 is op8=0x4A & ra & low4=3; imm16 unimpl
-:MSIM ra,imm16 is op8=0x4A & ra & low4=4; imm16 unimpl
-:DIM ra,imm16 is op8=0x4A & ra & low4=5; imm16 unimpl
-:DVIM ra,imm16 is op8=0x4A & ra & low4=6; imm16 unimpl
-:ANDM ra,imm16 is op8=0x4A & ra & low4=7; imm16 unimpl
-:ORIM ra,imm16 is op8=0x4A & ra & low4=8; imm16 unimpl
-:XORM ra,imm16 is op8=0x4A & ra & low4=9; imm16 unimpl
-:CIM ra,imm16 is op8=0x4A & ra & low4=10; imm16 unimpl
-:NIM ra,imm16 is op8=0x4A & ra & low4=11; imm16 unimpl
+# Double precision load
+:DLR ra,rb is op8=0x87 & ra & ra_1 & rb & db32 { local value:4 = db32; set32(ra, ra_1, value); zn(value); }
+:DLB bmem2 is op6=1 & bmem2 { local value:4 = bmem2; set32(R0, R1, value); zn(value); }
+:DLBX bxmem2 is op6=16 & hi4=1 & bxmem2 { local value:4 = bxmem2; set32(R0, R1, value); zn(value); }
+:DL ra,mem2 is (op8=0x86 & ra & ra_1) ... & mem2 { local value:4 = mem2; set32(ra, ra_1, value); zn(value); }
+:DLI ra,imem2 is (op8=0x88 & ra & ra_1) ... & imem2 { local value:4 = imem2; set32(ra, ra_1, value); zn(value); }
 
-# Register direct
-:SVBR ra,rb is op8=0x5A & ra & rb unimpl
-:RVBR ra,rb is op8=0x5C & ra & rb unimpl
-:TVBR ra,rb is op8=0x5E & ra & rb unimpl
-:SLR ra,rb is op8=0x6A & ra & rb unimpl
-:SAR ra,rb is op8=0x6B & ra & rb unimpl
-:SCR ra,rb is op8=0x6C & ra & rb unimpl
-:DSLR ra,rb is op8=0x6D & ra & rb unimpl
-:DSAR ra,rb is op8=0x6E & ra & rb unimpl
-:DSCR ra,rb is op8=0x6F & ra & rb unimpl
-:LR ra,rb is op8=0x81 & ra & rb unimpl
-:DLR ra,rb is op8=0x87 & ra & rb unimpl
-:POPM ra,rb is op8=0x8F & ra & rb unimpl
-:MOV ra,rb is op8=0x93 & ra & rb unimpl
-:PSHM ra,rb is op8=0x9F & ra & rb unimpl
-:AR ra,rb is op8=0xA1 & ra & rb unimpl
-:ABS ra,rb is op8=0xA4 & ra & rb unimpl
-:DABS ra,rb is op8=0xA5 & ra & rb unimpl
-:DAR ra,rb is op8=0xA7 & ra & rb unimpl
-:FAR ra,rb is op8=0xA9 & ra & rb unimpl
-:EFAR ra,rb is op8=0xAB & ra & rb unimpl
-:FABS ra,rb is op8=0xAC & ra & rb unimpl
-:SR ra,rb is op8=0xB1 & ra & rb unimpl
-:NEG ra,rb is op8=0xB4 & ra & rb unimpl
-:DNEG ra,rb is op8=0xB5 & ra & rb unimpl
-:DSR ra,rb is op8=0xB7 & ra & rb unimpl
-:FSR ra,rb is op8=0xB9 & ra & rb unimpl
-:EFSR ra,rb is op8=0xBB & ra & rb unimpl
-:FNEG ra,rb is op8=0xBC & ra & rb unimpl
-:MSR ra,rb is op8=0xC1 & ra & rb unimpl
-:MR ra,rb is op8=0xC5 & ra & rb unimpl
-:DMR ra,rb is op8=0xC7 & ra & rb unimpl
-:FMR ra,rb is op8=0xC9 & ra & rb unimpl
-:EFMR ra,rb is op8=0xCB & ra & rb unimpl
-:DVR ra,rb is op8=0xD1 & ra & rb unimpl
-:DR ra,rb is op8=0xD5 & ra & rb unimpl
-:DDR ra,rb is op8=0xD7 & ra & rb unimpl
-:FDR ra,rb is op8=0xD9 & ra & rb unimpl
-:EFDR ra,rb is op8=0xDB & ra & rb unimpl
-:ORR ra,rb is op8=0xE1 & ra & rb unimpl
-:ANDR ra,rb is op8=0xE3 & ra & rb unimpl
-:XORR ra,rb is op8=0xE5 & ra & rb unimpl
-:NR ra,rb is op8=0xE7 & ra & rb unimpl
-:FIX ra,rb is op8=0xE8 & ra & rb unimpl
-:FLT ra,rb is op8=0xE9 & ra & rb unimpl
-:EFIX ra,rb is op8=0xEA & ra & rb unimpl
-:EFLT ra,rb is op8=0xEB & ra & rb unimpl
-:XWR ra,rb is op8=0xED & ra & rb unimpl
-:CR ra,rb is op8=0xF1 & ra & rb unimpl
-:DCR ra,rb is op8=0xF7 & ra & rb unimpl
-:FCR ra,rb is op8=0xF9 & ra & rb unimpl
-:EFCR ra,rb is op8=0xFB & ra & rb unimpl
+# Extended float load and byte loads
+:EFL ra,mem3 is (op8=0x8A & ra & ra_1 & ra_2) ... & mem3 { local value:6 = mem3; set48(ra, ra_1, ra_2, value); zn(value); }
+:LUB ra,mem is (op8=0x8B & ra) ... & mem { ra = (ra & 0xff00) | (mem >> 8); zn(ra); }
+:LLB ra,mem is (op8=0x8C & ra) ... & mem { ra = (ra & 0xff00) | (mem & 0x00ff); zn(ra); }
+:LUBI ra,imem is (op8=0x8D & ra) ... & imem { ra = (ra & 0xff00) | (imem >> 8); zn(ra); }
+:LLBI ra,imem is (op8=0x8E & ra) ... & imem { ra = (ra & 0xff00) | (imem & 0x00ff); zn(ra); }
 
-# Bit number, register
-:SBR hi4,rb is op8=0x51 & hi4 & rb unimpl
-:RBR hi4,rb is op8=0x54 & hi4 & rb unimpl
-:TBR hi4,rb is op8=0x57 & hi4 & rb unimpl
+# Stack multiple
+:POPM ra,rb is op8=0x8F & ra & rb & popm_list { build popm_list; }
+:PSHM ra,rb is op8=0x9F & ra & rb & pshm_list { build pshm_list; }
+
+# Stores
+:ST ra,mem is (op8=0x90 & ra) ... & mem { mem = ra; }
+:STB bmem is op6=2 & bmem { bmem = R2; }
+:STBX bxmem is op6=16 & hi4=2 & bxmem { bxmem = R2; }
+:STI ra,imem is (op8=0x94 & ra) ... & imem { imem = ra; }
+:STC hi4,mem is (op8=0x91 & hi4) ... & mem { mem = hi4; }
+:STCI hi4,imem is (op8=0x92 & hi4) ... & imem { imem = hi4; }
+:DST ra,mem2 is (op8=0x96 & ra & ra_1) ... & mem2 { local left:4 = (zext(ra) << 16) | zext(ra_1); mem2 = left; }
+:DSTB bmem2 is op6=3 & r01 & bmem2 { bmem2 = r01; }
+:DSTX bxmem2 is op6=16 & hi4=3 & r01 & bxmem2 { bxmem2 = r01; }
+:DSTI ra,imem2 is (op8=0x98 & ra & ra_1) ... & imem2 { local left:4 = (zext(ra) << 16) | zext(ra_1); imem2 = left; }
+:SRM ra,mem is (op8=0x97 & ra & ra_1) ... & mem { mem = (mem & ~ra_1) | (ra & ra_1); }
+:EFST ra,mem3 is (op8=0x9A & ra & ra_2 & ra_1) ... & mem3 { local left:6 = (zext(ra) << 32) | (zext(ra_1) << 16) | zext(ra_2); mem3 = left; }
+:STUB ra,mem is (op8=0x9B & ra) ... & mem { mem = (mem & 0x00ff) | (ra << 8); }
+:STLB ra,mem is (op8=0x9C & ra) ... & mem { mem = (mem & 0xff00) | (ra & 0x00ff); }
+:SUBI ra,imem is (op8=0x9D & ra) ... & imem { imem = (imem & 0x00ff) | (ra << 8); }
+:SLBI ra,imem is (op8=0x9E & ra) ... & imem { imem = (imem & 0xff00) | (ra & 0x00ff); }
+
+# Memory to memory. The count in RA+1 is unsigned.
+:MOV ra,rb is op8=0x93 & ra & ra_1 & rb {
+<top>
+	if (ra_1 == 0) goto <done>;
+	*[ram]:2 ra = *[ram]:2 rb;
+	ra = ra + 1;
+	rb = rb + 1;
+	ra_1 = ra_1 - 1;
+	goto <top>;
+<done>
+}
+
+# Integer add
+:AR ra,rb is op8=0xA1 & ra & rb { add16(ra, rb); }
+:AB bmem is op6=4 & bmem { add16(R2, bmem); }
+:ABX bxmem is op6=16 & hi4=4 & bxmem { add16(R2, bxmem); }
+:AISP ra,count_low is op8=0xA2 & ra & count_low { add16(ra, count_low); }
+:A ra,mem is (op8=0xA0 & ra) ... & mem { add16(ra, mem); }
+:AIM ra,imm is op8=0x4A & ra & low4=1; imm { add16(ra, imm); }
+:INCM count_hi,mem is (op8=0xA3 & count_hi) ... & mem { local value:2 = mem; add16(value, count_hi); mem = value; }
+:DAR ra,rb is op8=0xA7 & ra & ra_1 & da32 & rb & db32 { add32(ra, ra_1, da32, db32); }
+:DA ra,mem2 is (op8=0xA6 & ra & ra_1) ... & mem2 { local left:4 = (zext(ra) << 16) | zext(ra_1); add32(ra, ra_1, left, mem2); }
+
+# Integer subtract
+:SR ra,rb is op8=0xB1 & ra & rb { sub16(ra, rb); }
+:SBB bmem is op6=5 & bmem { sub16(R2, bmem); }
+:SBBX bxmem is op6=16 & hi4=5 & bxmem { sub16(R2, bxmem); }
+:SISP ra,count_low is op8=0xB2 & ra & count_low { sub16(ra, count_low); }
+:S ra,mem is (op8=0xB0 & ra) ... & mem { sub16(ra, mem); }
+:SIM ra,imm is op8=0x4A & ra & low4=2; imm { sub16(ra, imm); }
+:DECM count_hi,mem is (op8=0xB3 & count_hi) ... & mem { local value:2 = mem; sub16(value, count_hi); mem = value; }
+:DSR ra,rb is op8=0xB7 & ra & ra_1 & da32 & rb & db32 { sub32(ra, ra_1, da32, db32); }
+:DS ra,mem2 is (op8=0xB6 & ra & ra_1) ... & mem2 { local left:4 = (zext(ra) << 16) | zext(ra_1); sub32(ra, ra_1, left, mem2); }
+
+# Absolute value and negate
+:ABS ra,rb is op8=0xA4 & ra & rb {
+	local value:2 = rb;
+	if (value s>= 0) goto <positive>;
+	value = -value;
+<positive>
+	ra = value;
+	zn(ra);
+}
+:DABS ra,rb is op8=0xA5 & ra & ra_1 & rb & db32 {
+	local value:4 = db32;
+	if (value s>= 0) goto <positive>;
+	value = -value;
+<positive>
+	set32(ra, ra_1, value);
+	zn(value);
+}
+:NEG ra,rb is op8=0xB4 & ra & rb { ra = -rb; zn(ra); }
+:DNEG ra,rb is op8=0xB5 & ra & ra_1 & rb & db32 { local value:4 = -db32; set32(ra, ra_1, value); zn(value); }
+
+# Multiply with a 16-bit product
+:MSR ra,rb is op8=0xC1 & ra & rb { multiply16(ra, rb); }
+:MISP ra,count_low is op8=0xC2 & ra & count_low { multiply16(ra, count_low); }
+:MISN ra,negative_low is op8=0xC3 & ra & negative_low { multiply16(ra, negative_low); }
+:MS ra,mem is (op8=0xC0 & ra) ... & mem { multiply16(ra, mem); }
+:MSIM ra,imm is op8=0x4A & ra & low4=4; imm { multiply16(ra, imm); }
+
+# Multiply with a 32-bit product
+:MR ra,rb is op8=0xC5 & ra & ra_1 & rb { multiply32(ra, ra_1, ra, rb); }
+:MB bmem is op6=6 & bmem { multiply32(R2, R3, R2, bmem); }
+:MBX bxmem is op6=16 & hi4=6 & bxmem { multiply32(R2, R3, R2, bxmem); }
+:M ra,mem is (op8=0xC4 & ra & ra_1) ... & mem { multiply32(ra, ra_1, ra, mem); }
+:MIM ra,imm is op8=0x4A & ra & ra_1 & low4=3; imm { multiply32(ra, ra_1, ra, imm); }
+
+# Double precision multiply
+:DMR ra,rb is op8=0xC7 & ra & ra_1 & da32 & rb & db32 { local product:4 = da32 * db32; set32(ra, ra_1, product); zn(product); }
+:DM ra,mem2 is (op8=0xC6 & ra & ra_1) ... & mem2 { local left:4 = (zext(ra) << 16) | zext(ra_1); local product:4 = left * mem2; set32(ra, ra_1, product); zn(product); }
+
+# Divide with a 16-bit dividend: quotient in RA, remainder in RA+1
+:DVR ra,rb is op8=0xD1 & ra & ra_1 & rb { divide_short(ra, ra_1, rb); }
+:DISP ra,count_low is op8=0xD2 & ra & ra_1 & count_low { divide_short(ra, ra_1, count_low); }
+:DISN ra,negative_low is op8=0xD3 & ra & ra_1 & negative_low { divide_short(ra, ra_1, negative_low); }
+:DV ra,mem is (op8=0xD0 & ra & ra_1) ... & mem { divide_short(ra, ra_1, mem); }
+:DVIM ra,imm is op8=0x4A & ra & ra_1 & low4=6; imm { divide_short(ra, ra_1, imm); }
+
+# Divide with a 32-bit dividend: quotient in RA, remainder in RA+1
+:DR ra,rb is op8=0xD5 & ra & ra_1 & da32 & rb { divide_long(ra, ra_1, da32, rb); }
+:DB bmem is op6=7 & r23 & bmem { divide_long(R2, R3, r23, bmem); }
+:DBX bxmem is op6=16 & hi4=7 & r23 & bxmem { divide_long(R2, R3, r23, bxmem); }
+:D ra,mem is (op8=0xD4 & ra & ra_1) ... & mem { local left:4 = (zext(ra) << 16) | zext(ra_1); divide_long(ra, ra_1, left, mem); }
+:DIM ra,imm is op8=0x4A & ra & ra_1 & da32 & low4=5; imm { divide_long(ra, ra_1, da32, imm); }
+
+# Double precision divide: the remainder is lost
+:DDR ra,rb is op8=0xD7 & ra & ra_1 & da32 & rb & db32 { local quotient:4 = da32 s/ db32; set32(ra, ra_1, quotient); zn(quotient); }
+:DD ra,mem2 is (op8=0xD6 & ra & ra_1) ... & mem2 { local left:4 = (zext(ra) << 16) | zext(ra_1); local quotient:4 = left s/ mem2; set32(ra, ra_1, quotient); zn(quotient); }
+
+# Logic
+:ORR ra,rb is op8=0xE1 & ra & rb { ra = ra | rb; zn(ra); }
+:ORB bmem is op6=12 & bmem { R2 = R2 | bmem; zn(R2); }
+:ORBX bxmem is op6=16 & hi4=15 & bxmem { R2 = R2 | bxmem; zn(R2); }
+:OR ra,mem is (op8=0xE0 & ra) ... & mem { ra = ra | mem; zn(ra); }
+:ORIM ra,imm is op8=0x4A & ra & low4=8; imm { ra = ra | imm; zn(ra); }
+:ANDR ra,rb is op8=0xE3 & ra & rb { ra = ra & rb; zn(ra); }
+:ANDB bmem is op6=13 & bmem { R2 = R2 & bmem; zn(R2); }
+:ANDX bxmem is op6=16 & hi4=14 & bxmem { R2 = R2 & bxmem; zn(R2); }
+:AND ra,mem is (op8=0xE2 & ra) ... & mem { ra = ra & mem; zn(ra); }
+:ANDM ra,imm is op8=0x4A & ra & low4=7; imm { ra = ra & imm; zn(ra); }
+:XORR ra,rb is op8=0xE5 & ra & rb { ra = ra ^ rb; zn(ra); }
+:XOR ra,mem is (op8=0xE4 & ra) ... & mem { ra = ra ^ mem; zn(ra); }
+:XORM ra,imm is op8=0x4A & ra & low4=9; imm { ra = ra ^ imm; zn(ra); }
+:NR ra,rb is op8=0xE7 & ra & rb { ra = ~(ra & rb); zn(ra); }
+:N ra,mem is (op8=0xE6 & ra) ... & mem { ra = ~(ra & mem); zn(ra); }
+:NIM ra,imm is op8=0x4A & ra & low4=11; imm { ra = ~(ra & imm); zn(ra); }
+
+# Compare
+:CR ra,rb is op8=0xF1 & ra & rb { compare(ra, rb); }
+:CB bmem is op6=14 & bmem { compare(R2, bmem); }
+:CBX bxmem is op6=16 & hi4=12 & bxmem { compare(R2, bxmem); }
+:CISP ra,count_low is op8=0xF2 & ra & count_low { compare(ra, count_low); }
+:CISN ra,negative_low is op8=0xF3 & ra & negative_low { compare(ra, negative_low); }
+:C ra,mem is (op8=0xF0 & ra) ... & mem { compare(ra, mem); }
+:CIM ra,imm is op8=0x4A & ra & low4=10; imm { compare(ra, imm); }
+:DCR ra,rb is op8=0xF7 & ra & da32 & rb & db32 { compare(da32, db32); }
+:DC ra,mem2 is (op8=0xF6 & ra & ra_1) ... & mem2 { local left:4 = (zext(ra) << 16) | zext(ra_1); compare(left, mem2); }
+# Compare between limits: DO1 and DO2 are at DA and DA+1.
+:CBL ra,mem2 is (op8=0xF4 & ra) ... & mem2 {
+	local limits:4 = mem2;
+	local lower:2 = limits(2);
+	local upper:2 = limits:2;
+	CS_C = lower s> upper;
+	CS_N = (!CS_C) && (ra s< lower);
+	CS_P = (!CS_C) && (ra s> upper);
+	CS_Z = (!CS_C) && (ra s>= lower) && (ra s<= upper);
+}
+
+# Single register bits. Bit 0 is the most significant.
+:SBR hi4,rb is op8=0x51 & hi4 & rb { rb = rb | (0x8000 >> hi4); }
+:SB hi4,mem is (op8=0x50 & hi4) ... & mem { mem = mem | (0x8000 >> hi4); }
+:SBI hi4,imem is (op8=0x52 & hi4) ... & imem { imem = imem | (0x8000 >> hi4); }
+:RBR hi4,rb is op8=0x54 & hi4 & rb { rb = rb & ~(0x8000 >> hi4); }
+:RB hi4,mem is (op8=0x53 & hi4) ... & mem { mem = mem & ~(0x8000 >> hi4); }
+:RBI hi4,imem is (op8=0x55 & hi4) ... & imem { imem = imem & ~(0x8000 >> hi4); }
+:TBR hi4,rb is op8=0x57 & hi4 & rb { local n:2 = hi4; test_bit(rb, n); }
+:TB hi4,mem is (op8=0x56 & hi4) ... & mem { local n:2 = hi4; test_bit(mem, n); }
+:TBI hi4,imem is (op8=0x58 & hi4) ... & imem { local n:2 = hi4; test_bit(imem, n); }
+:TSB hi4,mem is (op8=0x59 & hi4) ... & mem { local n:2 = hi4; local value:2 = mem; test_bit(value, n); mem = value | (0x8000 >> n); }
+:SVBR ra,rb is op8=0x5A & ra & rb { local n:2 = ra & 0xf; rb = rb | (0x8000 >> n); }
+:RVBR ra,rb is op8=0x5C & ra & rb { local n:2 = ra & 0xf; rb = rb & ~(0x8000 >> n); }
+:TVBR ra,rb is op8=0x5E & ra & rb { local n:2 = ra & 0xf; test_bit(rb, n); }
 
 # Shifts by a constant
-:SLL rb,count_hi is op8=0x60 & rb & count_hi unimpl
-:SRL rb,count_hi is op8=0x61 & rb & count_hi unimpl
-:SRA rb,count_hi is op8=0x62 & rb & count_hi unimpl
-:SLC rb,count_hi is op8=0x63 & rb & count_hi unimpl
-:DSLL rb,count_hi is op8=0x65 & rb & count_hi unimpl
-:DSRL rb,count_hi is op8=0x66 & rb & count_hi unimpl
-:DSRA rb,count_hi is op8=0x67 & rb & count_hi unimpl
-:DSLC rb,count_hi is op8=0x68 & rb & count_hi unimpl
+:SLL rb,count_hi is op8=0x60 & rb & count_hi { rb = rb << count_hi; zn(rb); }
+:SRL rb,count_hi is op8=0x61 & rb & count_hi { rb = rb >> count_hi; zn(rb); }
+:SRA rb,count_hi is op8=0x62 & rb & count_hi { rb = rb s>> count_hi; zn(rb); }
+:SLC rb,count_hi is op8=0x63 & rb & count_hi { rb = (rb << count_hi) | (rb >> (16 - count_hi)); zn(rb); }
+:DSLL rb,count_hi is op8=0x65 & rb & rb_1 & db32 & count_hi { local value:4 = db32 << count_hi; set32(rb, rb_1, value); zn(value); }
+:DSRL rb,count_hi is op8=0x66 & rb & rb_1 & db32 & count_hi { local value:4 = db32 >> count_hi; set32(rb, rb_1, value); zn(value); }
+:DSRA rb,count_hi is op8=0x67 & rb & rb_1 & db32 & count_hi { local value:4 = db32 s>> count_hi; set32(rb, rb_1, value); zn(value); }
+:DSLC rb,count_hi is op8=0x68 & rb & rb_1 & db32 & count_hi { local value:4 = (db32 << count_hi) | (db32 >> (32 - count_hi)); set32(rb, rb_1, value); zn(value); }
 
-# Immediate short
-:LISP ra,count_low is op8=0x82 & ra & count_low unimpl
-:LISN ra,count_low is op8=0x83 & ra & count_low unimpl
-:AISP ra,count_low is op8=0xA2 & ra & count_low unimpl
-:SISP ra,count_low is op8=0xB2 & ra & count_low unimpl
-:MISP ra,count_low is op8=0xC2 & ra & count_low unimpl
-:MISN ra,count_low is op8=0xC3 & ra & count_low unimpl
-:DISP ra,count_low is op8=0xD2 & ra & count_low unimpl
-:DISN ra,count_low is op8=0xD3 & ra & count_low unimpl
-:CISP ra,count_low is op8=0xF2 & ra & count_low unimpl
-:CISN ra,count_low is op8=0xF3 & ra & count_low unimpl
+# Shifts by a signed count in RB: positive is left. Past the limit they do nothing.
+:SLR ra,rb is op8=0x6A & ra & rb {
+	local n:2 = rb;
+	if ((n s> 16) || (n s< -16)) goto <done>;
+	if (n s< 0) goto <right>;
+	ra = ra << n;
+	goto <done>;
+<right>
+	ra = ra >> (-n);
+<done>
+	zn(ra);
+}
+:SAR ra,rb is op8=0x6B & ra & rb {
+	local n:2 = rb;
+	if ((n s> 16) || (n s< -16)) goto <done>;
+	if (n s< 0) goto <right>;
+	ra = ra << n;
+	goto <done>;
+<right>
+	ra = ra s>> (-n);
+<done>
+	zn(ra);
+}
+:SCR ra,rb is op8=0x6C & ra & rb {
+	local n:2 = rb;
+	if ((n s> 16) || (n s< -16)) goto <done>;
+	if (n s< 0) goto <right>;
+	ra = (ra << n) | (ra >> (16 - n));
+	goto <done>;
+<right>
+	ra = (ra >> (-n)) | (ra << (16 + n));
+<done>
+	zn(ra);
+}
+:DSLR ra,rb is op8=0x6D & ra & ra_1 & da32 & rb {
+	local n:2 = rb;
+	local value:4 = da32;
+	if ((n s> 32) || (n s< -32)) goto <done>;
+	if (n s< 0) goto <right>;
+	value = value << n;
+	goto <done>;
+<right>
+	value = value >> (-n);
+<done>
+	set32(ra, ra_1, value);
+	zn(value);
+}
+:DSAR ra,rb is op8=0x6E & ra & ra_1 & da32 & rb {
+	local n:2 = rb;
+	local value:4 = da32;
+	if ((n s> 32) || (n s< -32)) goto <done>;
+	if (n s< 0) goto <right>;
+	value = value << n;
+	goto <done>;
+<right>
+	value = value s>> (-n);
+<done>
+	set32(ra, ra_1, value);
+	zn(value);
+}
+:DSCR ra,rb is op8=0x6F & ra & ra_1 & da32 & rb {
+	local n:2 = rb;
+	local value:4 = da32;
+	if ((n s> 32) || (n s< -32)) goto <done>;
+	if (n s< 0) goto <right>;
+	value = (value << n) | (value >> (32 - n));
+	goto <done>;
+<right>
+	value = (value >> (-n)) | (value << (32 + n));
+<done>
+	set32(ra, ra_1, value);
+	zn(value);
+}
 
-# Memory, immediate long and XIO: RA,value[,RX]
-:XIO ra,imm16^idx is op8=0x48 & ra & idx; imm16 unimpl
-:VIO ra,imm16^idx is op8=0x49 & ra & idx; imm16 unimpl
-:L ra,imm16^idx is op8=0x80 & ra & idx; imm16 unimpl
-:LI ra,imm16^idx is op8=0x84 & ra & idx; imm16 unimpl
-:LIM ra,imm16^idx is op8=0x85 & ra & idx; imm16 unimpl
-:DL ra,imm16^idx is op8=0x86 & ra & idx; imm16 unimpl
-:DLI ra,imm16^idx is op8=0x88 & ra & idx; imm16 unimpl
-:EFL ra,imm16^idx is op8=0x8A & ra & idx; imm16 unimpl
-:LUB ra,imm16^idx is op8=0x8B & ra & idx; imm16 unimpl
-:LLB ra,imm16^idx is op8=0x8C & ra & idx; imm16 unimpl
-:LUBI ra,imm16^idx is op8=0x8D & ra & idx; imm16 unimpl
-:LLBI ra,imm16^idx is op8=0x8E & ra & idx; imm16 unimpl
-:ST ra,imm16^idx is op8=0x90 & ra & idx; imm16 unimpl
-:STI ra,imm16^idx is op8=0x94 & ra & idx; imm16 unimpl
-:DST ra,imm16^idx is op8=0x96 & ra & idx; imm16 unimpl
-:SRM ra,imm16^idx is op8=0x97 & ra & idx; imm16 unimpl
-:DSTI ra,imm16^idx is op8=0x98 & ra & idx; imm16 unimpl
-:EFST ra,imm16^idx is op8=0x9A & ra & idx; imm16 unimpl
-:STUB ra,imm16^idx is op8=0x9B & ra & idx; imm16 unimpl
-:STLB ra,imm16^idx is op8=0x9C & ra & idx; imm16 unimpl
-:SUBI ra,imm16^idx is op8=0x9D & ra & idx; imm16 unimpl
-:SLBI ra,imm16^idx is op8=0x9E & ra & idx; imm16 unimpl
-:A ra,imm16^idx is op8=0xA0 & ra & idx; imm16 unimpl
-:DA ra,imm16^idx is op8=0xA6 & ra & idx; imm16 unimpl
-:FA ra,imm16^idx is op8=0xA8 & ra & idx; imm16 unimpl
-:EFA ra,imm16^idx is op8=0xAA & ra & idx; imm16 unimpl
-:S ra,imm16^idx is op8=0xB0 & ra & idx; imm16 unimpl
-:DS ra,imm16^idx is op8=0xB6 & ra & idx; imm16 unimpl
-:FS ra,imm16^idx is op8=0xB8 & ra & idx; imm16 unimpl
-:EFS ra,imm16^idx is op8=0xBA & ra & idx; imm16 unimpl
-:MS ra,imm16^idx is op8=0xC0 & ra & idx; imm16 unimpl
-:M ra,imm16^idx is op8=0xC4 & ra & idx; imm16 unimpl
-:DM ra,imm16^idx is op8=0xC6 & ra & idx; imm16 unimpl
-:FM ra,imm16^idx is op8=0xC8 & ra & idx; imm16 unimpl
-:EFM ra,imm16^idx is op8=0xCA & ra & idx; imm16 unimpl
-:DV ra,imm16^idx is op8=0xD0 & ra & idx; imm16 unimpl
-:D ra,imm16^idx is op8=0xD4 & ra & idx; imm16 unimpl
-:DD ra,imm16^idx is op8=0xD6 & ra & idx; imm16 unimpl
-:FD ra,imm16^idx is op8=0xD8 & ra & idx; imm16 unimpl
-:EFD ra,imm16^idx is op8=0xDA & ra & idx; imm16 unimpl
-:OR ra,imm16^idx is op8=0xE0 & ra & idx; imm16 unimpl
-:AND ra,imm16^idx is op8=0xE2 & ra & idx; imm16 unimpl
-:XOR ra,imm16^idx is op8=0xE4 & ra & idx; imm16 unimpl
-:N ra,imm16^idx is op8=0xE6 & ra & idx; imm16 unimpl
-:C ra,imm16^idx is op8=0xF0 & ra & idx; imm16 unimpl
-:CBL ra,imm16^idx is op8=0xF4 & ra & idx; imm16 unimpl
-:DC ra,imm16^idx is op8=0xF6 & ra & idx; imm16 unimpl
-:FC ra,imm16^idx is op8=0xF8 & ra & idx; imm16 unimpl
-:EFC ra,imm16^idx is op8=0xFA & ra & idx; imm16 unimpl
+# Exchange
+:XBR ra is op8=0xEC & ra & low4=0 { ra = (ra << 8) | (ra >> 8); zn(ra); }
+:XWR ra,rb is op8=0xED & ra & rb { local value:2 = ra; ra = rb; rb = value; zn(ra); }
 
-# Memory with an N operand encoded as-is: N,ADDR[,RX]
-:SB hi4,imm16^idx is op8=0x50 & hi4 & idx; imm16 unimpl
-:SBI hi4,imm16^idx is op8=0x52 & hi4 & idx; imm16 unimpl
-:RB hi4,imm16^idx is op8=0x53 & hi4 & idx; imm16 unimpl
-:RBI hi4,imm16^idx is op8=0x55 & hi4 & idx; imm16 unimpl
-:TB hi4,imm16^idx is op8=0x56 & hi4 & idx; imm16 unimpl
-:TBI hi4,imm16^idx is op8=0x58 & hi4 & idx; imm16 unimpl
-:TSB hi4,imm16^idx is op8=0x59 & hi4 & idx; imm16 unimpl
-:LM hi4,imm16^idx is op8=0x89 & hi4 & idx; imm16 unimpl
-:STC hi4,imm16^idx is op8=0x91 & hi4 & idx; imm16 unimpl
-:STCI hi4,imm16^idx is op8=0x92 & hi4 & idx; imm16 unimpl
-:STM hi4,imm16^idx is op8=0x99 & hi4 & idx; imm16 unimpl
+# Floating point add and subtract
+:FAR ra,rb is op8=0xA9 & ra & ra_1 & da32 & rb & db32 { local value:4 = fadd32(da32, db32); set32(ra, ra_1, value); zn(value); }
+:FAB bmem2 is op6=8 & r01 & bmem2 { local value:4 = fadd32(r01, bmem2); set32(R0, R1, value); zn(value); }
+:FABX bxmem2 is op6=16 & hi4=8 & r01 & bxmem2 { local value:4 = fadd32(r01, bxmem2); set32(R0, R1, value); zn(value); }
+:FA ra,mem2 is (op8=0xA8 & ra & ra_1) ... & mem2 { local left:4 = (zext(ra) << 16) | zext(ra_1); local value:4 = fadd32(left, mem2); set32(ra, ra_1, value); zn(value); }
+:EFAR ra,rb is op8=0xAB & ra & ra_1 & ra_2 & da48 & rb & db48 { local value:6 = fadd48(da48, db48); set48(ra, ra_1, ra_2, value); zn(value); }
+:EFA ra,mem3 is (op8=0xAA & ra & ra_1 & ra_2) ... & mem3 { local left:6 = (zext(ra) << 32) | (zext(ra_1) << 16) | zext(ra_2); local value:6 = fadd48(left, mem3); set48(ra, ra_1, ra_2, value); zn(value); }
+:FSR ra,rb is op8=0xB9 & ra & ra_1 & da32 & rb & db32 { local value:4 = fsub32(da32, db32); set32(ra, ra_1, value); zn(value); }
+:FSB bmem2 is op6=9 & r01 & bmem2 { local value:4 = fsub32(r01, bmem2); set32(R0, R1, value); zn(value); }
+:FSBX bxmem2 is op6=16 & hi4=9 & r01 & bxmem2 { local value:4 = fsub32(r01, bxmem2); set32(R0, R1, value); zn(value); }
+:FS ra,mem2 is (op8=0xB8 & ra & ra_1) ... & mem2 { local left:4 = (zext(ra) << 16) | zext(ra_1); local value:4 = fsub32(left, mem2); set32(ra, ra_1, value); zn(value); }
+:EFSR ra,rb is op8=0xBB & ra & ra_1 & ra_2 & da48 & rb & db48 { local value:6 = fsub48(da48, db48); set48(ra, ra_1, ra_2, value); zn(value); }
+:EFS ra,mem3 is (op8=0xBA & ra & ra_1 & ra_2) ... & mem3 { local left:6 = (zext(ra) << 32) | (zext(ra_1) << 16) | zext(ra_2); local value:6 = fsub48(left, mem3); set48(ra, ra_1, ra_2, value); zn(value); }
 
-# Memory with a count of 1 to 16
-:INCM count_hi,imm16^idx is op8=0xA3 & count_hi & idx; imm16 unimpl
-:DECM count_hi,imm16^idx is op8=0xB3 & count_hi & idx; imm16 unimpl
+# Floating point multiply and divide
+:FMR ra,rb is op8=0xC9 & ra & ra_1 & da32 & rb & db32 { local value:4 = fmul32(da32, db32); set32(ra, ra_1, value); zn(value); }
+:FMB bmem2 is op6=10 & r01 & bmem2 { local value:4 = fmul32(r01, bmem2); set32(R0, R1, value); zn(value); }
+:FMBX bxmem2 is op6=16 & hi4=10 & r01 & bxmem2 { local value:4 = fmul32(r01, bxmem2); set32(R0, R1, value); zn(value); }
+:FM ra,mem2 is (op8=0xC8 & ra & ra_1) ... & mem2 { local left:4 = (zext(ra) << 16) | zext(ra_1); local value:4 = fmul32(left, mem2); set32(ra, ra_1, value); zn(value); }
+:EFMR ra,rb is op8=0xCB & ra & ra_1 & ra_2 & da48 & rb & db48 { local value:6 = fmul48(da48, db48); set48(ra, ra_1, ra_2, value); zn(value); }
+:EFM ra,mem3 is (op8=0xCA & ra & ra_1 & ra_2) ... & mem3 { local left:6 = (zext(ra) << 32) | (zext(ra_1) << 16) | zext(ra_2); local value:6 = fmul48(left, mem3); set48(ra, ra_1, ra_2, value); zn(value); }
+:FDR ra,rb is op8=0xD9 & ra & ra_1 & da32 & rb & db32 { local value:4 = fdiv32(da32, db32); set32(ra, ra_1, value); zn(value); }
+:FDB bmem2 is op6=11 & r01 & bmem2 { local value:4 = fdiv32(r01, bmem2); set32(R0, R1, value); zn(value); }
+:FDBX bxmem2 is op6=16 & hi4=11 & r01 & bxmem2 { local value:4 = fdiv32(r01, bxmem2); set32(R0, R1, value); zn(value); }
+:FD ra,mem2 is (op8=0xD8 & ra & ra_1) ... & mem2 { local left:4 = (zext(ra) << 16) | zext(ra_1); local value:4 = fdiv32(left, mem2); set32(ra, ra_1, value); zn(value); }
+:EFDR ra,rb is op8=0xDB & ra & ra_1 & ra_2 & da48 & rb & db48 { local value:6 = fdiv48(da48, db48); set48(ra, ra_1, ra_2, value); zn(value); }
+:EFD ra,mem3 is (op8=0xDA & ra & ra_1 & ra_2) ... & mem3 { local left:6 = (zext(ra) << 32) | (zext(ra_1) << 16) | zext(ra_2); local value:6 = fdiv48(left, mem3); set48(ra, ra_1, ra_2, value); zn(value); }
 
-# Special
-:BIF byte is op8=0x4F & byte unimpl
-:BEX low4 is op8=0x77 & hi4=0 & low4 unimpl
-:XBR ra is op8=0xEC & ra & low4=0 unimpl
+# Floating point absolute value, negate and conversions
+:FABS ra,rb is op8=0xAC & ra & ra_1 & rb & db32 { local value:4 = fabs32(db32); set32(ra, ra_1, value); zn(value); }
+:FNEG ra,rb is op8=0xBC & ra & ra_1 & rb & db32 { local value:4 = fneg32(db32); set32(ra, ra_1, value); zn(value); }
+:FIX ra,rb is op8=0xE8 & ra & rb & db32 { local value:2 = fix32(db32); ra = value; zn(ra); }
+:FLT ra,rb is op8=0xE9 & ra & ra_1 & rb { local value:4 = flt32(rb); set32(ra, ra_1, value); zn(value); }
+:EFIX ra,rb is op8=0xEA & ra & ra_1 & rb & db48 { local value:4 = fix48(db48); set32(ra, ra_1, value); zn(value); }
+:EFLT ra,rb is op8=0xEB & ra & ra_1 & ra_2 & rb & db32 { local value:6 = flt48(db32); set48(ra, ra_1, ra_2, value); zn(value); }
+
+# Floating point compare
+:FCR ra,rb is op8=0xF9 & ra & da32 & rb & db32 { local result:1 = fcmp32(da32, db32); compare_result(result); }
+:FCB bmem2 is op6=15 & r01 & bmem2 { local result:1 = fcmp32(r01, bmem2); compare_result(result); }
+:FCBX bxmem2 is op6=16 & hi4=13 & r01 & bxmem2 { local result:1 = fcmp32(r01, bxmem2); compare_result(result); }
+:FC ra,mem2 is (op8=0xF8 & ra & ra_1) ... & mem2 { local left:4 = (zext(ra) << 16) | zext(ra_1); local result:1 = fcmp32(left, mem2); compare_result(result); }
+:EFCR ra,rb is op8=0xFB & ra & da48 & rb & db48 { local result:1 = fcmp48(da48, db48); compare_result(result); }
+:EFC ra,mem3 is (op8=0xFA & ra & ra_2 & ra_1) ... & mem3 { local left:6 = (zext(ra) << 32) | (zext(ra_1) << 16) | zext(ra_2); local result:1 = fcmp48(left, mem3); compare_result(result); }
+
+# Input and output, and other named operations
+:XIO ra,ea is (op8=0x48 & ra) ... & ea { ra = xio(ra, ea); }
+:VIO ra,ea is (op8=0x49 & ra) ... & ea { vio(ra, ea); }
+:BIF byte is op8=0x4F & byte { bif(byte:1); }
+:BEX low4 is op8=0x77 & hi4=0 & low4 { bex(low4:1); }
 :NOP is op8=0xFF & byte=0x00 { }
-:BPT is op8=0xFF & byte=0xFF unimpl
+:BPT is op8=0xFF & byte=0xFF { breakpoint(); }
 
-# IC-relative branches. The standard matches CS against X010 and so on, ignoring carry.
+# IC-relative branches
 :BR relative is op8=0x74 & relative { goto relative; }
-:BEZ relative is op8=0x75 & relative { if ((CS & 7) == 2) goto relative; }
-:BLT relative is op8=0x76 & relative { if ((CS & 7) == 1) goto relative; }
-:BLE relative is op8=0x78 & relative { if (((CS & 7) == 2) || ((CS & 7) == 1)) goto relative; }
-:BGT relative is op8=0x79 & relative { if ((CS & 7) == 4) goto relative; }
-:BNZ relative is op8=0x7A & relative { if (((CS & 7) == 4) || ((CS & 7) == 1)) goto relative; }
-:BGE relative is op8=0x7B & relative { if (((CS & 7) == 4) || ((CS & 7) == 2)) goto relative; }
+:BEZ relative is op8=0x75 & relative { if (CS_Z != 0) goto relative; }
+:BLT relative is op8=0x76 & relative { if (CS_N != 0) goto relative; }
+:BLE relative is op8=0x78 & relative { if ((CS_Z | CS_N) != 0) goto relative; }
+:BGT relative is op8=0x79 & relative { if (CS_P != 0) goto relative; }
+:BNZ relative is op8=0x7A & relative { if ((CS_P | CS_N) != 0) goto relative; }
+:BGE relative is op8=0x7B & relative { if ((CS_P | CS_Z) != 0) goto relative; }
 
-# C=0 never jumps, and C=7 or C=F always jumps.
+# C=0 never jumps, and C=7 or C=F always jumps. Otherwise C selects flags: C P Z N.
 never: "0x0" is c=0 { }
 always: "0x7" is c=7 { }
 always: "0xF" is c=15 { }
+
+cond: "0x1" is c=1 { export CS_N; }
+cond: "0x2" is c=2 { export CS_Z; }
+cond: "0x3" is c=3 { local taken:1 = CS_Z | CS_N; export taken; }
+cond: "0x4" is c=4 { export CS_P; }
+cond: "0x5" is c=5 { local taken:1 = CS_P | CS_N; export taken; }
+cond: "0x6" is c=6 { local taken:1 = CS_P | CS_Z; export taken; }
+cond: "0x8" is c=8 { export CS_C; }
+cond: "0x9" is c=9 { local taken:1 = CS_C | CS_N; export taken; }
+cond: "0xA" is c=10 { local taken:1 = CS_C | CS_Z; export taken; }
+cond: "0xB" is c=11 { local taken:1 = CS_C | CS_Z | CS_N; export taken; }
+cond: "0xC" is c=12 { local taken:1 = CS_C | CS_P; export taken; }
+cond: "0xD" is c=13 { local taken:1 = CS_C | CS_P | CS_N; export taken; }
+cond: "0xE" is c=14 { local taken:1 = CS_C | CS_P | CS_Z; export taken; }
 
 :JC never,imm16^idx is op8=0x70 & never & idx; imm16 { }
 :JC always,direct is op8=0x70 & always & rx=0; direct { goto direct; }
@@ -277,14 +609,10 @@ always: "0xF" is c=15 { }
 	local target:2 = imm16 + rx;
 	goto [target];
 }
-:JC c,direct is op8=0x70 & c & rx=0; direct {
-	local mask:1 = c;
-	if ((CS & mask) != 0) goto direct;
-}
-:JC c,imm16,rx is op8=0x70 & c & rx; imm16 {
-	local mask:1 = c;
+:JC cond,direct is op8=0x70 & cond & rx=0; direct { if (cond != 0) goto direct; }
+:JC cond,imm16,rx is op8=0x70 & cond & rx; imm16 {
 	local target:2 = imm16 + rx;
-	if ((CS & mask) == 0) goto inst_next;
+	if (cond == 0) goto inst_next;
 	goto [target];
 }
 
@@ -294,11 +622,10 @@ always: "0xF" is c=15 { }
 	local target:2 = *[ram]:2 pointer;
 	goto [target];
 }
-:JCI c,imm16^idx is op8=0x71 & c & idx; imm16 {
-	local mask:1 = c;
+:JCI cond,imm16^idx is op8=0x71 & cond & idx; imm16 {
 	local pointer:2 = imm16 + idx;
 	local target:2 = *[ram]:2 pointer;
-	if ((CS & mask) == 0) goto inst_next;
+	if (cond == 0) goto inst_next;
 	goto [target];
 }
 
@@ -314,11 +641,13 @@ always: "0xF" is c=15 { }
 }
 :SOJ ra,direct is op8=0x73 & ra & rx=0; direct {
 	ra = ra - 1;
+	zn(ra);
 	if (ra != 0) goto direct;
 }
 :SOJ ra,imm16,rx is op8=0x73 & ra & rx; imm16 {
 	local target:2 = imm16 + rx;
 	ra = ra - 1;
+	zn(ra);
 	if (ra == 0) goto inst_next;
 	goto [target];
 }
@@ -343,7 +672,7 @@ always: "0xF" is c=15 { }
 :LST imm16^idx is op8=0x7D & hi4=0 & idx; imm16 {
 	local pointer:2 = imm16 + idx;
 	MK = *[ram]:2 pointer;
-	SW = *[ram]:2 (pointer + 1);
+	load_status(*[ram]:2 (pointer + 1));
 	local target:2 = *[ram]:2 (pointer + 2);
 	return [target];
 }
@@ -351,7 +680,7 @@ always: "0xF" is c=15 { }
 	local address:2 = imm16 + idx;
 	local pointer:2 = *[ram]:2 address;
 	MK = *[ram]:2 pointer;
-	SW = *[ram]:2 (pointer + 1);
+	load_status(*[ram]:2 (pointer + 1));
 	local target:2 = *[ram]:2 (pointer + 2);
 	return [target];
 }

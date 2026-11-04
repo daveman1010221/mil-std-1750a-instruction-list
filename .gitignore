@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+# Full output is roughly 32 GB; regenerate it with generate_1750a.py.
+1750a_instructions.txt
+*.part
+split/
+tests/.refs/

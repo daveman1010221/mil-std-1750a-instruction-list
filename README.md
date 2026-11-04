@@ -97,6 +97,9 @@ What this stage does and doesn't do:
   convention (the `.cspec` is a placeholder). `BEX` and `BIF` are treated as falling
   through, and any extra words a `BIF` uses will disassemble as instructions.
 
+`samples/` has a small test image built from GCC-compiled Dhrystone. Its
+[README](samples/README.md) documents the image layout.
+
 ## Validation
 
 ```sh
@@ -104,6 +107,7 @@ python3 -m unittest discover -s tests                 # quick, about 30 seconds
 ./generate_1750a.py --split-dir split && tests/validate_output.py split/op_*.txt
 GHIDRA_INSTALL_DIR=/path/to/ghidra tests/test_sleigh.sh        # module, about 1 minute
 GHIDRA_INSTALL_DIR=/path/to/ghidra FULL=1 tests/test_sleigh.sh # every encoding
+GHIDRA_INSTALL_DIR=/path/to/ghidra tests/test_real_code.sh     # sample programs
 tests/e2e_generator.sh                                # needs a compiler and Ghidra
 ```
 
@@ -113,6 +117,7 @@ tests/e2e_generator.sh                                # needs a compiler and Ghi
 | `test_generator.py` | Hand-worked golden lines, plus corrupted output (dropped lines, swapped operands, off-by-one counts and more) that the validator must reject. |
 | `test_references.py` | Compares the table with the standard's text and, read as plain text, with `as1750` and `dism1750` from [milstd1750tools](https://github.com/okellogg/milstd1750tools). Also applies the generator's tokenizer and register rules to the output. |
 | `test_sleigh.sh` | Compiles the module and decodes the list with it, checking each encoding's length, text and flow type and targets. Also checks that every first word the standard doesn't define fails to decode, branch targets across the address wrap, and flow following on a small program. Behavior beyond control flow is not tested. |
+| `test_real_code.sh` | Assembles the sample code from milstd1750tools, including GCC-compiled Dhrystone, with `tests/sleigh/assemble_1750.py`, then compares Ghidra's disassembly with the source. Fails on any differing instruction, data decoded as code, or Ghidra error. Doesn't check flow types, which `test_sleigh.sh` does, and runs nothing from that repo. |
 | `e2e_generator.sh` | Runs the real generator, SLEIGH compiler and generator-validator on a subset. |
 
 `dism1750.c` disagrees with the standard on three instruction lengths, which

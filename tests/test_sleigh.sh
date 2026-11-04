@@ -10,26 +10,10 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$(mkdir -p "${1:-$(mktemp -d)}" && cd "${1:-.}" && pwd)"
-: "${GHIDRA_INSTALL_DIR:?set GHIDRA_INSTALL_DIR to a Ghidra installation}"
 PYTHON="${PYTHON:-python3}"
-# A generous heap: analyzeHeadless otherwise caps it at a fraction of what threads need.
-export MAXMEM="${MAXMEM:-8G}"
-export XDG_CONFIG_HOME="$WORK/config" XDG_CACHE_HOME="$WORK/cache"
 echo "Working in $WORK"
 
-GHIDRA="$WORK/ghidra"
-if [ ! -d "$GHIDRA" ]; then
-    cp -r --no-preserve=mode "$GHIDRA_INSTALL_DIR" "$GHIDRA"
-    find "$GHIDRA/support" "$GHIDRA/Ghidra/Features/Decompiler/os" -type f -exec chmod +x {} +
-fi
-# On nix, launch.sh is a compiled wrapper hard-coded to run the original install.
-if [ -f "$GHIDRA/support/.launch.sh-wrapped" ]; then
-    mv "$GHIDRA/support/.launch.sh-wrapped" "$GHIDRA/support/launch.sh"
-fi
-MODULE="$GHIDRA/Ghidra/Processors/MIL1750A"
-rm -rf "$MODULE"
-cp -r "$REPO_ROOT/ghidra/MIL1750A" "$MODULE"
-"$GHIDRA/support/sleigh" "$MODULE/data/languages/MIL1750A.slaspec"
+. "$REPO_ROOT/tests/sleigh/setup_ghidra.sh"
 
 LIST="$WORK/list"
 rm -rf "$LIST" "$WORK/project"

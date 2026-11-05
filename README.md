@@ -178,3 +178,7 @@ The last two build third-party code and haven't been run yet.
 `dism1750.c` disagrees with the standard on three instruction lengths, which
 `test_references.py` records: it decodes `LUBI` and `LLBI` as one-word register forms, and
 gives `BIF` a data word.
+
+## License
+
+GNU General Public License, version 2. See [LICENSE](LICENSE).

@@ -68,8 +68,8 @@ assembler folds case.
 
 The sources are `dhry.s`, `__main.s` and `bcopy.s` from
 [milstd1750tools](https://github.com/okellogg/milstd1750tools) at commit `5d3ad01`, which is
-GPL-2.0. This image is derived from them, so check the license terms before making this
-repository public or passing the image on.
+GPL-2.0, the license of this repository. This image is derived from them, so anyone passing
+it on needs to follow those terms, which include making those sources available.
 
 ## Regenerating
 
